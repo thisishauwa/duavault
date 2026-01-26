@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">DuaVault</string>
+    <string name="title_activity_main">DuaVault</string>
+    <string name="package_name">com.chick.duavault</string>
+    <string name="custom_url_scheme">com.chick.duavault</string>
+</resources>

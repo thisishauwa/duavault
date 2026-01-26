@@ -1,0 +1,13 @@
+@import "tailwindcss";
+@source ".";
+
+/* Custom base styles */
+:root {
+  --safe-top: env(safe-area-inset-top);
+  --safe-bottom: env(safe-area-inset-bottom);
+}
+
+body {
+  /* Prevent rubber-banding on iOS */
+  overscroll-behavior-y: none;
+}

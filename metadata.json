@@ -1,0 +1,7 @@
+{
+  "name": "DuaVault - Your Personal Dua Collection",
+  "description": "Capture, translate, and organize your favorite duas from screenshots, links, or manual entry using AI.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
