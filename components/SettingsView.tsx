@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { signOut } from '../services/supabase';
 import { ArrowLeft, LogOut, Shield, FileText, Trash2, Sparkles, ChevronRight, User as UserIcon } from 'lucide-react';
 
 interface SettingsViewProps {
@@ -8,13 +7,14 @@ interface SettingsViewProps {
   isPremium: boolean;
   onBack: () => void;
   onOpenPaywall: () => void;
+  onOpenAuth: () => void;
+  onSignOut: () => Promise<void>;
 }
 
-const SettingsView: React.FC<SettingsViewProps> = ({ user, isPremium, onBack, onOpenPaywall }) => {
+const SettingsView: React.FC<SettingsViewProps> = ({ user, isPremium, onBack, onOpenPaywall, onOpenAuth, onSignOut }) => {
   const handleLogout = async () => {
     if (window.confirm('Are you sure you want to sign out?')) {
-      await signOut();
-      window.location.reload();
+      await onSignOut();
     }
   };
 
@@ -81,7 +81,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ user, isPremium, onBack, on
                 </button>
               ) : (
                 <button 
-                  onClick={() => window.location.reload()}
+                  onClick={onOpenAuth}
                   className="w-full flex items-center justify-between p-5 hover:bg-gray-100 transition-colors border-b border-gray-100/50"
                 >
                   <div className="flex items-center gap-4">

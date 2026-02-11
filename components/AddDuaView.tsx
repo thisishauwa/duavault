@@ -22,6 +22,25 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({ onSave, onBack }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const compressImageFile = async (file: File): Promise<string> => {
+    const imageBitmap = await createImageBitmap(file);
+    const maxDimension = 1400;
+    const scale = Math.min(1, maxDimension / Math.max(imageBitmap.width, imageBitmap.height));
+    const targetWidth = Math.max(1, Math.round(imageBitmap.width * scale));
+    const targetHeight = Math.max(1, Math.round(imageBitmap.height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Image processing unavailable.');
+    ctx.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
+
+    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.72);
+    imageBitmap.close();
+    return jpegDataUrl;
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -29,22 +48,18 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({ onSave, onBack }) => {
     setIsProcessing(true);
     setError(null);
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const base64 = event.target?.result as string;
-        const result = await processDuaFromImage(base64);
-        setArabic(result.arabic);
-        setTranslation(result.translation);
-        setCategory(result.category as Category);
-        setSource('screenshot');
-        setInputMode('manual');
-        setIsProcessing(false);
-      };
-      reader.readAsDataURL(file);
+      const compressed = await compressImageFile(file);
+      const result = await processDuaFromImage(compressed);
+      setArabic(result.arabic);
+      setTranslation(result.translation);
+      setCategory(result.category as Category);
+      setSource('screenshot');
+      setInputMode('manual');
     } catch (err) {
       setError("Text illumination failed. Let's try typing it.");
-      setIsProcessing(false);
       setInputMode('manual');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -53,17 +68,17 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({ onSave, onBack }) => {
     setIsProcessing(true);
     setError(null);
     try {
-      const result = await processDuaFromUrl(linkInput);
+      const result = await processDuaFromUrl(linkInput.trim());
       setArabic(result.arabic);
       setTranslation(result.translation);
       setCategory(result.category as Category);
       setSource('link');
       setInputMode('manual');
-      setIsProcessing(false);
     } catch (err) {
       setError("Couldn't find a reflection there. Try manual entry.");
-      setIsProcessing(false);
       setInputMode('manual');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -75,9 +90,9 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({ onSave, onBack }) => {
       const result = await processDuaFromText(arabic);
       setTranslation(result.translation);
       setCategory(result.category as Category);
-      setIsProcessing(false);
     } catch (err) {
       setError("AI is resting. Please add the meaning manually.");
+    } finally {
       setIsProcessing(false);
     }
   };
