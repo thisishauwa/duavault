@@ -91,7 +91,7 @@ const DuaDetailView: React.FC<DuaDetailViewProps> = ({ dua, onBack, onUpdate, on
             <div className="space-y-6">
               <div className="w-12 h-1 bg-gray-50 mx-auto rounded-full" />
               <p className="text-gray-600 text-xl leading-relaxed italic font-medium text-center px-4">
-                “{dua.translation}”
+                {dua.translation ? `“${dua.translation}”` : 'No translation yet. Use AI Illumination to generate one.'}
               </p>
             </div>
 

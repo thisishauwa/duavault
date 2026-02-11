@@ -26,6 +26,21 @@ const DUA_RESPONSE_SCHEMA = {
   required: ['arabic', 'translation', 'category'],
 };
 
+const DUA_ARABIC_ONLY_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    arabic: {
+      type: Type.STRING,
+      description: 'The extracted Arabic text. Include all diacritics (harakat) if visible.',
+    },
+    category: {
+      type: Type.STRING,
+      description: 'The most appropriate category.',
+    },
+  },
+  required: ['arabic', 'category'],
+};
+
 const withTimeout = async <T>(promise: Promise<T>, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> => {
   return await Promise.race([
     promise,
@@ -55,8 +70,8 @@ const setCached = (key: string, value: { arabic: string; translation: string; ca
   responseCache.set(key, value);
 };
 
-export const processDuaFromImage = async (base64Image: string) => {
-  const cacheKey = `img:${base64Image.slice(0, 120)}`;
+export const processDuaFromImage = async (base64Image: string, includeTranslation = true) => {
+  const cacheKey = `img:${includeTranslation ? 'full' : 'arabic'}:${base64Image.slice(0, 120)}`;
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
@@ -69,14 +84,14 @@ export const processDuaFromImage = async (base64Image: string) => {
           { inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } },
           {
             text: `Extract one Arabic dua from this image and return JSON with:
-            arabic, translation, category.
+            arabic, ${includeTranslation ? 'translation, ' : ''}category.
             category must be one of: ${Object.values(Category).join(', ')}.`,
           },
         ],
       },
       config: {
         responseMimeType: "application/json",
-        responseSchema: DUA_RESPONSE_SCHEMA,
+        responseSchema: includeTranslation ? DUA_RESPONSE_SCHEMA : DUA_ARABIC_ONLY_RESPONSE_SCHEMA,
         temperature: 0.1,
       },
     })
@@ -110,9 +125,9 @@ export const processDuaFromText = async (arabicText: string) => {
   return parsed;
 };
 
-export const processDuaFromUrl = async (url: string) => {
+export const processDuaFromUrl = async (url: string, includeTranslation = true) => {
   const cleanedUrl = url.trim();
-  const cacheKey = `url:${cleanedUrl}`;
+  const cacheKey = `url:${includeTranslation ? 'full' : 'arabic'}:${cleanedUrl}`;
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
@@ -120,12 +135,12 @@ export const processDuaFromUrl = async (url: string) => {
   const response = await withTimeout(
     ai.models.generateContent({
       model,
-      contents: `Extract the main Arabic dua from this URL and return JSON with arabic, translation, category.
+      contents: `Extract the main Arabic dua from this URL and return JSON with arabic, ${includeTranslation ? 'translation, ' : ''}category.
       URL: ${cleanedUrl}
       Categories: ${Object.values(Category).join(', ')}`,
       config: {
         responseMimeType: "application/json",
-        responseSchema: DUA_RESPONSE_SCHEMA,
+        responseSchema: includeTranslation ? DUA_RESPONSE_SCHEMA : DUA_ARABIC_ONLY_RESPONSE_SCHEMA,
         tools: [{ googleSearch: {} }],
         temperature: 0.1,
       },

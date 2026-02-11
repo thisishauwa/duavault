@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { ArrowLeft, LogOut, Shield, FileText, Trash2, Sparkles, ChevronRight, User as UserIcon } from 'lucide-react';
+import { ArrowLeft, LogOut, Shield, FileText, Trash2, Sparkles, ChevronRight, User as UserIcon, Crown, RefreshCw } from 'lucide-react';
 
 interface SettingsViewProps {
   user: any;
@@ -9,9 +9,20 @@ interface SettingsViewProps {
   onOpenPaywall: () => void;
   onOpenAuth: () => void;
   onSignOut: () => Promise<void>;
+  onOpenCustomerCenter: () => Promise<void>;
+  onRestorePurchases: () => Promise<void>;
 }
 
-const SettingsView: React.FC<SettingsViewProps> = ({ user, isPremium, onBack, onOpenPaywall, onOpenAuth, onSignOut }) => {
+const SettingsView: React.FC<SettingsViewProps> = ({
+  user,
+  isPremium,
+  onBack,
+  onOpenPaywall,
+  onOpenAuth,
+  onSignOut,
+  onOpenCustomerCenter,
+  onRestorePurchases,
+}) => {
   const handleLogout = async () => {
     if (window.confirm('Are you sure you want to sign out?')) {
       await onSignOut();
@@ -67,18 +78,44 @@ const SettingsView: React.FC<SettingsViewProps> = ({ user, isPremium, onBack, on
             <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">Account</h5>
             <div className="bg-gray-50 rounded-[2rem] overflow-hidden">
               {user ? (
-                <button 
-                  onClick={handleLogout}
-                  className="w-full flex items-center justify-between p-5 hover:bg-gray-100 transition-colors border-b border-gray-100/50"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-gray-400">
-                      <LogOut size={18} />
+                <>
+                  <button
+                    onClick={() => void onOpenCustomerCenter()}
+                    className="w-full flex items-center justify-between p-5 hover:bg-gray-100 transition-colors border-b border-gray-100/50"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-emerald-600">
+                        <Crown size={18} />
+                      </div>
+                      <span className="text-sm font-bold text-gray-700">Manage Subscription</span>
                     </div>
-                    <span className="text-sm font-bold text-gray-700">Sign Out</span>
-                  </div>
-                  <ChevronRight size={16} className="text-gray-300" />
-                </button>
+                    <ChevronRight size={16} className="text-gray-300" />
+                  </button>
+                  <button
+                    onClick={() => void onRestorePurchases()}
+                    className="w-full flex items-center justify-between p-5 hover:bg-gray-100 transition-colors border-b border-gray-100/50"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-gray-400">
+                        <RefreshCw size={18} />
+                      </div>
+                      <span className="text-sm font-bold text-gray-700">Restore Purchases</span>
+                    </div>
+                    <ChevronRight size={16} className="text-gray-300" />
+                  </button>
+                  <button 
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-between p-5 hover:bg-gray-100 transition-colors border-b border-gray-100/50"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-gray-400">
+                        <LogOut size={18} />
+                      </div>
+                      <span className="text-sm font-bold text-gray-700">Sign Out</span>
+                    </div>
+                    <ChevronRight size={16} className="text-gray-300" />
+                  </button>
+                </>
               ) : (
                 <button 
                   onClick={onOpenAuth}

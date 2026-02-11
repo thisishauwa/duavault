@@ -19,11 +19,28 @@ import {
   upsertUserDuas,
   fetchUserPreferences,
   setUserOnboardingCompleted,
-  fetchIsPremium,
+  consumeTranslationQuota,
+  fetchTranslationQuota,
+  upsertUserSubscription,
+  type TranslationQuota,
 } from './services/supabase';
+import {
+  derivePlanFromCustomerInfo,
+  getDuaVaultPackages,
+  getPackageDisplayPrice,
+  getRevenueCatCustomerInfo,
+  hasDuaVaultProEntitlement,
+  initializeRevenueCat,
+  presentRevenueCatCustomerCenter,
+  purchaseRevenueCatPackage,
+  type RevenueCatPlanId,
+  restoreRevenueCatPurchases,
+  syncRevenueCatUser,
+} from './services/revenuecat';
 import { LayoutGrid, Plus, User as UserIcon } from 'lucide-react';
+import type { PurchasesPackage } from '@revenuecat/purchases-capacitor';
 
-const FREE_LIMIT = 5;
+const FREE_TRANSLATION_LIMIT = 3;
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('onboarding');
@@ -36,22 +53,132 @@ const App: React.FC = () => {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAppHydrated, setIsAppHydrated] = useState(false);
   const [isCloudDataReady, setIsCloudDataReady] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState<RevenueCatPlanId>('monthly');
+  const [isPurchasingPlan, setIsPurchasingPlan] = useState(false);
+  const [paywallPackages, setPaywallPackages] = useState<{
+    monthly?: PurchasesPackage;
+    yearly?: PurchasesPackage;
+    lifetime?: PurchasesPackage;
+  }>({});
+  const [translationQuota, setTranslationQuota] = useState<TranslationQuota>({
+    allowed: true,
+    used: 0,
+    remaining: FREE_TRANSLATION_LIMIT,
+    periodStart: new Date().toISOString().slice(0, 10),
+    limit: FREE_TRANSLATION_LIMIT,
+  });
 
   useEffect(() => {
-    const savedDuas = localStorage.getItem('duaVault_duas');
-    if (savedDuas) setDuas(JSON.parse(savedDuas));
+    const guestStatus = localStorage.getItem('duaVault_guest');
+    const isGuest = guestStatus === 'true';
+    setIsGuestSession(isGuest);
 
-    const premiumStatus = localStorage.getItem('duaVault_premium');
-    if (premiumStatus) setIsPremium(JSON.parse(premiumStatus));
+    // Only hydrate local dua cache for guest sessions.
+    if (isGuest) {
+      const savedDuas = localStorage.getItem('duaVault_duas');
+      if (savedDuas) setDuas(JSON.parse(savedDuas));
+    }
 
     const onboardingStatus = localStorage.getItem('duaVault_onboarding');
-    setHasCompletedOnboarding(Boolean(onboardingStatus));
-
-    const guestStatus = localStorage.getItem('duaVault_guest');
-    setIsGuestSession(guestStatus === 'true');
+    setHasCompletedOnboarding(onboardingStatus === 'true');
 
     setIsAppHydrated(true);
   }, []);
+
+  const currentGuestPeriodKey = () => {
+    const now = new Date();
+    return `duaVault_translation_used_${now.getUTCFullYear()}_${now.getUTCMonth() + 1}`;
+  };
+
+  const currentUserFallbackPeriodKey = (userId: string) => {
+    const now = new Date();
+    return `duaVault_translation_used_user_${userId}_${now.getUTCFullYear()}_${now.getUTCMonth() + 1}`;
+  };
+
+  const consumeLocalTranslationQuota = (storageKey: string) => {
+    const used = Number(localStorage.getItem(storageKey) ?? '0');
+    if (used >= FREE_TRANSLATION_LIMIT) {
+      setTranslationQuota({
+        allowed: false,
+        used,
+        remaining: 0,
+        periodStart: new Date().toISOString().slice(0, 10),
+        limit: FREE_TRANSLATION_LIMIT,
+      });
+      setCurrentView('paywall');
+      return false;
+    }
+
+    const nextUsed = used + 1;
+    localStorage.setItem(storageKey, String(nextUsed));
+    setTranslationQuota({
+      allowed: nextUsed < FREE_TRANSLATION_LIMIT,
+      used: nextUsed,
+      remaining: Math.max(FREE_TRANSLATION_LIMIT - nextUsed, 0),
+      periodStart: new Date().toISOString().slice(0, 10),
+      limit: FREE_TRANSLATION_LIMIT,
+    });
+    return true;
+  };
+
+  useEffect(() => {
+    if (!isAppHydrated) return;
+
+    if (isPremium) {
+      setTranslationQuota({
+        allowed: true,
+        used: 0,
+        remaining: Number.MAX_SAFE_INTEGER,
+        periodStart: new Date().toISOString().slice(0, 10),
+        limit: Number.MAX_SAFE_INTEGER,
+      });
+      return;
+    }
+
+    if (user) {
+      fetchTranslationQuota(user.id, FREE_TRANSLATION_LIMIT)
+        .then(setTranslationQuota)
+        .catch((error) => {
+          console.error('Failed to fetch translation quota:', error);
+        });
+      return;
+    }
+
+    const used = isGuestSession ? Number(localStorage.getItem(currentGuestPeriodKey()) ?? '0') : 0;
+    const remaining = Math.max(FREE_TRANSLATION_LIMIT - used, 0);
+    setTranslationQuota({
+      allowed: remaining > 0,
+      used,
+      remaining,
+      periodStart: new Date().toISOString().slice(0, 10),
+      limit: FREE_TRANSLATION_LIMIT,
+    });
+  }, [isAppHydrated, user, isPremium, isGuestSession]);
+
+  useEffect(() => {
+    if (currentView !== 'paywall') return;
+    let cancelled = false;
+
+    const loadPaywallPackages = async () => {
+      try {
+        const pkgs = await getDuaVaultPackages();
+        if (cancelled || !pkgs) return;
+        setPaywallPackages(pkgs);
+
+        if (pkgs.monthly) setSelectedPlanId('monthly');
+        else if (pkgs.yearly) setSelectedPlanId('yearly');
+        else if (pkgs.lifetime) setSelectedPlanId('lifetime');
+      } catch (error) {
+        console.error('Failed to load RevenueCat packages:', error);
+      }
+    };
+
+    void loadPaywallPackages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentView]);
 
   useEffect(() => {
     let mounted = true;
@@ -76,6 +203,46 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isAppHydrated || !isAuthReady) return;
 
+    let cancelled = false;
+
+    const setupRevenueCat = async () => {
+      try {
+        await initializeRevenueCat(user?.id);
+        const info = user?.id ? await syncRevenueCatUser(user.id) : await getRevenueCatCustomerInfo();
+        if (!cancelled) {
+          const premiumActive = hasDuaVaultProEntitlement(info);
+          setIsPremium(premiumActive);
+          if (user?.id) {
+            const plan = derivePlanFromCustomerInfo(info);
+            try {
+              await upsertUserSubscription(
+                user.id,
+                premiumActive ? 'active' : 'inactive',
+                plan === 'free' ? 'free' : plan
+              );
+            } catch (syncError) {
+              console.error('Failed to sync subscription state:', syncError);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('RevenueCat setup failed:', error);
+        if (!cancelled) {
+          setIsPremium(false);
+        }
+      }
+    };
+
+    void setupRevenueCat();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAppHydrated, isAuthReady, user?.id]);
+
+  useEffect(() => {
+    if (!isAppHydrated || !isAuthReady) return;
+
     if (!user) {
       setIsCloudDataReady(true);
       return;
@@ -87,17 +254,15 @@ const App: React.FC = () => {
       try {
         await ensureUserProfile({ id: user.id, email: user.email });
 
-        const [duasResult, onboardingResult, premiumResult] = await Promise.allSettled([
+        const [duasResult, onboardingResult] = await Promise.allSettled([
           fetchUserDuas(user.id),
           fetchUserPreferences(user.id),
-          fetchIsPremium(user.id),
         ]);
 
         if (cancelled) return;
 
         const cloudDuas = duasResult.status === 'fulfilled' ? duasResult.value : [];
         const cloudOnboardingComplete = onboardingResult.status === 'fulfilled' ? onboardingResult.value : false;
-        const cloudPremium = premiumResult.status === 'fulfilled' ? premiumResult.value : false;
 
         if (duasResult.status === 'rejected') {
           console.error('Failed to fetch cloud duas:', duasResult.reason);
@@ -105,10 +270,6 @@ const App: React.FC = () => {
         if (onboardingResult.status === 'rejected') {
           console.error('Failed to fetch user preferences:', onboardingResult.reason);
         }
-        if (premiumResult.status === 'rejected') {
-          console.error('Failed to fetch subscription status:', premiumResult.reason);
-        }
-
         const localDuasRaw = localStorage.getItem('duaVault_duas');
         const localDuas = localDuasRaw ? (JSON.parse(localDuasRaw) as Dua[]) : [];
         const migrationKey = `duaVault_migrated_${user.id}`;
@@ -137,15 +298,17 @@ const App: React.FC = () => {
 
         setDuas(nextDuas);
         setHasCompletedOnboarding(onboardingComplete);
-        setIsPremium(cloudPremium);
 
         if (onboardingComplete && !cloudOnboardingComplete) {
           await setUserOnboardingCompleted(user.id, true);
         }
 
-        // User account is now source of truth for data/state.
+        // User account is now source of truth for app data/state.
         localStorage.removeItem('duaVault_guest');
-        localStorage.removeItem('duaVault_premium');
+        localStorage.removeItem('duaVault_duas');
+        if (onboardingComplete) {
+          localStorage.removeItem('duaVault_onboarding');
+        }
       } catch (error) {
         console.error('Failed to load cloud data:', error);
       } finally {
@@ -188,20 +351,18 @@ const App: React.FC = () => {
   }, [isAppHydrated, isAuthReady, isCloudDataReady, hasCompletedOnboarding, user, isGuestSession, currentView]);
 
   useEffect(() => {
-    if (!user) {
+    if (!user && isGuestSession) {
       localStorage.setItem('duaVault_duas', JSON.stringify(duas));
     }
-  }, [duas]);
+  }, [duas, user, isGuestSession]);
 
   const addDua = async (newDua: Omit<Dua, 'id' | 'createdAt' | 'isFavorite'>) => {
-    if (!isPremium && !user && duas.length >= FREE_LIMIT) {
-      setCurrentView('paywall');
-      return;
-    }
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const activeUserId = user?.id ?? authUser?.id;
 
     try {
-      if (user) {
-        const created = await createUserDua(user.id, newDua);
+      if (activeUserId) {
+        const created = await createUserDua(activeUserId, newDua);
         setDuas((prev) => [created, ...prev]);
       } else {
         const dua: Dua = {
@@ -216,49 +377,61 @@ const App: React.FC = () => {
       setCurrentView('library');
     } catch (error) {
       console.error('Failed to add dua:', error);
+      alert('Could not save to cloud right now. Please try again.');
     }
   };
 
   const updateDua = async (updatedDua: Dua) => {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const activeUserId = user?.id ?? authUser?.id;
+
     try {
-      if (user) {
-        const saved = await updateUserDua(user.id, updatedDua);
+      if (activeUserId) {
+        const saved = await updateUserDua(activeUserId, updatedDua);
         setDuas((prev) => prev.map((d) => (d.id === saved.id ? saved : d)));
         return;
       }
       setDuas((prev) => prev.map((d) => (d.id === updatedDua.id ? updatedDua : d)));
     } catch (error) {
       console.error('Failed to update dua:', error);
+      alert('Could not update in cloud right now. Please try again.');
     }
   };
 
   const deleteDua = async (id: string) => {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const activeUserId = user?.id ?? authUser?.id;
+
     try {
-      if (user) {
-        await deleteUserDua(user.id, id);
+      if (activeUserId) {
+        await deleteUserDua(activeUserId, id);
       }
       setDuas((prev) => prev.filter((d) => d.id !== id));
       setCurrentView('library');
     } catch (error) {
       console.error('Failed to delete dua:', error);
+      alert('Could not delete from cloud right now. Please try again.');
     }
   };
 
   const toggleFavorite = async (id: string) => {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const activeUserId = user?.id ?? authUser?.id;
     const target = duas.find((d) => d.id === id);
     if (!target) return;
 
     const next = { ...target, isFavorite: !target.isFavorite };
 
     try {
-      if (user) {
-        const saved = await updateUserDua(user.id, next);
+      if (activeUserId) {
+        const saved = await updateUserDua(activeUserId, next);
         setDuas((prev) => prev.map((d) => (d.id === saved.id ? saved : d)));
         return;
       }
       setDuas((prev) => prev.map((d) => (d.id === id ? next : d)));
     } catch (error) {
       console.error('Failed to toggle favorite:', error);
+      alert('Could not update favorite in cloud right now. Please try again.');
     }
   };
 
@@ -287,29 +460,123 @@ const App: React.FC = () => {
 
   const handleAuthenticated = () => {
     localStorage.removeItem('duaVault_guest');
+    localStorage.removeItem('duaVault_duas');
     setIsGuestSession(false);
     setCurrentView('library');
   };
 
   const handleSignOut = async () => {
     await signOut();
+    setIsPremium(false);
+    try {
+      await syncRevenueCatUser();
+    } catch (error) {
+      console.error('RevenueCat logout failed:', error);
+    }
     localStorage.removeItem('duaVault_guest');
     setIsGuestSession(false);
     setCurrentView('auth');
   };
 
-  const handleUpgrade = () => {
-    if (user) {
-      // Billing integration should update public.subscriptions server-side.
-      setCurrentView('library');
+  const handleUpgrade = async (planId: RevenueCatPlanId) => {
+    const chosenPackage = paywallPackages[planId];
+    if (!chosenPackage) {
+      alert('No package available right now. Check RevenueCat offering setup.');
       return;
     }
-    setIsPremium(true);
-    localStorage.setItem('duaVault_premium', 'true');
-    setCurrentView('library');
+
+    setIsPurchasingPlan(true);
+    try {
+      const info = await purchaseRevenueCatPackage(chosenPackage);
+      if (hasDuaVaultProEntitlement(info)) {
+        setIsPremium(true);
+        if (user?.id) {
+          try {
+            await upsertUserSubscription(user.id, 'active', planId);
+          } catch (syncError) {
+            console.error('Failed to sync subscription state:', syncError);
+          }
+        }
+        setCurrentView('library');
+      } else {
+        alert('Purchase is complete but entitlement is not active yet. Try Restore Purchases.');
+      }
+    } catch (error) {
+      console.error('Purchase flow failed:', error);
+      alert('Could not complete purchase right now. Please try again.');
+    } finally {
+      setIsPurchasingPlan(false);
+    }
+  };
+
+  const handleOpenCustomerCenter = async () => {
+    try {
+      await presentRevenueCatCustomerCenter();
+      const info = await getRevenueCatCustomerInfo();
+      const premiumActive = hasDuaVaultProEntitlement(info);
+      setIsPremium(premiumActive);
+      if (user?.id) {
+        const plan = derivePlanFromCustomerInfo(info);
+        try {
+          await upsertUserSubscription(user.id, premiumActive ? 'active' : 'inactive', plan === 'free' ? 'free' : plan);
+        } catch (syncError) {
+          console.error('Failed to sync subscription state:', syncError);
+        }
+      }
+    } catch (error) {
+      console.error('Customer Center failed:', error);
+      alert('Could not open subscription management right now.');
+    }
+  };
+
+  const handleRestorePurchases = async () => {
+    try {
+      const info = await restoreRevenueCatPurchases();
+      const premiumActive = hasDuaVaultProEntitlement(info);
+      setIsPremium(premiumActive);
+      if (user?.id) {
+        const plan = derivePlanFromCustomerInfo(info);
+        try {
+          await upsertUserSubscription(user.id, premiumActive ? 'active' : 'inactive', plan === 'free' ? 'free' : plan);
+        } catch (syncError) {
+          console.error('Failed to sync subscription state:', syncError);
+        }
+      }
+      alert('Purchases restored.');
+    } catch (error) {
+      console.error('Restore purchases failed:', error);
+      alert('Could not restore purchases right now.');
+    }
+  };
+
+  const requestTranslation = async () => {
+    if (isPremium) return true;
+
+    if (user) {
+      try {
+        const quota = await consumeTranslationQuota(FREE_TRANSLATION_LIMIT);
+        setTranslationQuota(quota);
+        if (!quota.allowed) {
+          setCurrentView('paywall');
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.error('Failed to consume translation quota:', error);
+        // Fail closed to prevent bypassing paywall when quota infra errors.
+        return consumeLocalTranslationQuota(currentUserFallbackPeriodKey(user.id));
+      }
+    }
+
+    return consumeLocalTranslationQuota(currentGuestPeriodKey());
   };
 
   const selectedDua = useMemo(() => duas.find(d => d.id === selectedDuaId), [duas, selectedDuaId]);
+  const translationUsageLabel = useMemo(() => {
+    if (isPremium) return 'Unlimited translations (Dua Vault Pro)';
+    if (!Number.isFinite(translationQuota.limit) || translationQuota.limit <= 0) return null;
+    return `Translations this month: ${translationQuota.used}/${translationQuota.limit} used`;
+  }, [isPremium, translationQuota.used, translationQuota.limit]);
 
   if (!isAppHydrated || !isAuthReady || !isCloudDataReady) {
     return <div className="h-dvh w-screen bg-white" />;
@@ -321,9 +588,37 @@ const App: React.FC = () => {
       case 'auth': return <AuthView onSkip={handleContinueAsGuest} onAuthenticated={handleAuthenticated} />;
       case 'library': return <LibraryView duas={duas} onSelect={(id) => { setSelectedDuaId(id); setCurrentView('detail'); }} onToggleFavorite={(id) => { void toggleFavorite(id); }} />;
       case 'detail': return selectedDua ? <DuaDetailView dua={selectedDua} onBack={() => setCurrentView('library')} onUpdate={(dua) => { void updateDua(dua); }} onDelete={(id) => { void deleteDua(id); }} onToggleFavorite={(id) => { void toggleFavorite(id); }} /> : null;
-      case 'add': return <AddDuaView onSave={(dua) => { void addDua(dua); }} onBack={() => setCurrentView('library')} />;
-      case 'paywall': return <PaywallView onUpgrade={handleUpgrade} onBack={() => setCurrentView('library')} />;
-      case 'settings': return <SettingsView user={user} isPremium={isPremium} onBack={() => setCurrentView('library')} onOpenPaywall={() => setCurrentView('paywall')} onOpenAuth={() => setCurrentView('auth')} onSignOut={handleSignOut} />;
+      case 'add': return <AddDuaView onSave={(dua) => { void addDua(dua); }} onBack={() => setCurrentView('library')} onRequestTranslation={requestTranslation} translationUsageLabel={translationUsageLabel} />;
+      case 'paywall': return (
+        <PaywallView
+          selectedPackageId={selectedPlanId}
+          packageOptions={[
+            {
+              id: 'monthly',
+              title: 'Monthly',
+              subtitle: getPackageDisplayPrice(paywallPackages.monthly) ?? 'Not available',
+            },
+            {
+              id: 'yearly',
+              title: 'Yearly',
+              subtitle: getPackageDisplayPrice(paywallPackages.yearly) ?? 'Not available',
+            },
+            {
+              id: 'lifetime',
+              title: 'Lifetime',
+              subtitle: getPackageDisplayPrice(paywallPackages.lifetime) ?? 'Not available',
+            },
+          ].filter((pkg) => pkg.subtitle !== 'Not available')}
+          isPurchasing={isPurchasingPlan}
+          onSelectPackage={setSelectedPlanId}
+          onUpgrade={(id) => {
+            setSelectedPlanId(id);
+            void handleUpgrade(id);
+          }}
+          onBack={() => setCurrentView('library')}
+        />
+      );
+      case 'settings': return <SettingsView user={user} isPremium={isPremium} onBack={() => setCurrentView('library')} onOpenPaywall={() => setCurrentView('paywall')} onOpenAuth={() => setCurrentView('auth')} onSignOut={handleSignOut} onOpenCustomerCenter={handleOpenCustomerCenter} onRestorePurchases={handleRestorePurchases} />;
       default: return <LibraryView duas={duas} onSelect={(id) => { setSelectedDuaId(id); setCurrentView('detail'); }} onToggleFavorite={toggleFavorite} />;
     }
   };

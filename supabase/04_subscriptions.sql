@@ -1,14 +1,20 @@
 -- Run after profiles.sql
--- Stores per-user app preferences that should sync across devices.
+-- Stores subscription snapshot for each user.
 
-create table if not exists public.user_preferences (
+create table if not exists public.subscriptions (
   user_id uuid primary key references auth.users(id) on delete cascade,
-  has_completed_onboarding boolean not null default false,
+  status text not null default 'inactive' check (status in ('active', 'inactive', 'expired', 'cancelled')),
+  plan_code text not null default 'free',
+  provider text not null default 'revenuecat',
+  expires_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
-create or replace function public.set_user_preferences_updated_at()
+create index if not exists subscriptions_status_idx on public.subscriptions(status);
+create index if not exists subscriptions_plan_code_idx on public.subscriptions(plan_code);
+
+create or replace function public.set_subscriptions_updated_at()
 returns trigger
 language plpgsql
 as $$
@@ -18,53 +24,28 @@ begin
 end;
 $$;
 
-drop trigger if exists set_user_preferences_updated_at on public.user_preferences;
-create trigger set_user_preferences_updated_at
-before update on public.user_preferences
-for each row execute procedure public.set_user_preferences_updated_at();
+drop trigger if exists set_subscriptions_updated_at on public.subscriptions;
+create trigger set_subscriptions_updated_at
+before update on public.subscriptions
+for each row execute procedure public.set_subscriptions_updated_at();
 
-alter table public.user_preferences enable row level security;
+alter table public.subscriptions enable row level security;
 
-drop policy if exists "Users can view own preferences" on public.user_preferences;
-create policy "Users can view own preferences"
-  on public.user_preferences
+drop policy if exists "Users can view own subscription" on public.subscriptions;
+create policy "Users can view own subscription"
+  on public.subscriptions
   for select
   using (auth.uid() = user_id);
 
-drop policy if exists "Users can insert own preferences" on public.user_preferences;
-create policy "Users can insert own preferences"
-  on public.user_preferences
+drop policy if exists "Users can insert own subscription" on public.subscriptions;
+create policy "Users can insert own subscription"
+  on public.subscriptions
   for insert
   with check (auth.uid() = user_id);
 
-drop policy if exists "Users can update own preferences" on public.user_preferences;
-create policy "Users can update own preferences"
-  on public.user_preferences
+drop policy if exists "Users can update own subscription" on public.subscriptions;
+create policy "Users can update own subscription"
+  on public.subscriptions
   for update
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
-
-drop policy if exists "Users can delete own preferences" on public.user_preferences;
-create policy "Users can delete own preferences"
-  on public.user_preferences
-  for delete
-  using (auth.uid() = user_id);
-
-create or replace function public.handle_new_user_preferences()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  insert into public.user_preferences (user_id)
-  values (new.id)
-  on conflict (user_id) do nothing;
-  return new;
-end;
-$$;
-
-drop trigger if exists on_auth_user_created_preferences on auth.users;
-create trigger on_auth_user_created_preferences
-after insert on auth.users
-for each row execute procedure public.handle_new_user_preferences();

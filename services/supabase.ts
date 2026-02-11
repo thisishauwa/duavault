@@ -205,3 +205,125 @@ export const fetchIsPremium = async (userId: string) => {
   }
   return data?.status === 'active';
 };
+
+const getCurrentPeriodStart = () => {
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  return start.toISOString().slice(0, 10);
+};
+
+export type TranslationQuota = {
+  allowed: boolean;
+  used: number;
+  remaining: number;
+  periodStart: string;
+  limit: number;
+};
+
+export const fetchTranslationQuota = async (userId: string, limit: number): Promise<TranslationQuota> => {
+  const periodStart = getCurrentPeriodStart();
+  const { data, error } = await supabase
+    .from('translation_usage')
+    .select('used_count')
+    .eq('user_id', userId)
+    .eq('period_start', periodStart)
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === '42P01') {
+      return {
+        allowed: true,
+        used: 0,
+        remaining: limit,
+        periodStart,
+        limit,
+      };
+    }
+    throw error;
+  }
+
+  const used = data?.used_count ?? 0;
+  const remaining = Math.max(limit - used, 0);
+  return {
+    allowed: remaining > 0,
+    used,
+    remaining,
+    periodStart,
+    limit,
+  };
+};
+
+export const consumeTranslationQuota = async (limit: number): Promise<TranslationQuota> => {
+  const periodStart = getCurrentPeriodStart();
+  const { data, error } = await supabase.rpc('consume_translation_quota', {
+    p_limit: limit,
+  });
+
+  if (error) {
+    if (error.code === '42883') {
+      // RPC missing - fallback to non-atomic client flow.
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId) throw error;
+
+      const current = await fetchTranslationQuota(userId, limit);
+      if (!current.allowed) return current;
+
+      const nextUsed = current.used + 1;
+      const { error: upsertError } = await supabase.from('translation_usage').upsert(
+        {
+          user_id: userId,
+          period_start: periodStart,
+          used_count: nextUsed,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,period_start' }
+      );
+      if (upsertError) throw upsertError;
+
+      return {
+        allowed: nextUsed <= limit,
+        used: nextUsed,
+        remaining: Math.max(limit - nextUsed, 0),
+        periodStart,
+        limit,
+      };
+    }
+    if (error.code === '42P01') throw error;
+    throw error;
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+  const used = row?.used_count ?? 0;
+  const remaining = Math.max(row?.remaining ?? Math.max(limit - used, 0), 0);
+  return {
+    allowed: Boolean(row?.allowed),
+    used,
+    remaining,
+    periodStart: row?.period_start ?? periodStart,
+    limit,
+  };
+};
+
+export const upsertUserSubscription = async (
+  userId: string,
+  status: 'active' | 'inactive' | 'expired' | 'cancelled',
+  planCode: string,
+  provider = 'revenuecat'
+) => {
+  const { error } = await supabase.from('subscriptions').upsert(
+    {
+      user_id: userId,
+      status,
+      plan_code: planCode,
+      provider,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id' }
+  );
+
+  if (error) {
+    if (error.code === '42P01') return;
+    throw error;
+  }
+};

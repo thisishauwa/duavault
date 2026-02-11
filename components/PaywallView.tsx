@@ -2,12 +2,29 @@
 import React from 'react';
 import { ArrowLeft, Check, Sparkles, Star } from 'lucide-react';
 
+type PackageOption = {
+  id: 'monthly' | 'yearly' | 'lifetime';
+  title: string;
+  subtitle: string;
+};
+
 interface PaywallViewProps {
-  onUpgrade: () => void;
+  selectedPackageId: 'monthly' | 'yearly' | 'lifetime';
+  packageOptions: PackageOption[];
+  isPurchasing: boolean;
+  onSelectPackage: (id: 'monthly' | 'yearly' | 'lifetime') => void;
+  onUpgrade: (id: 'monthly' | 'yearly' | 'lifetime') => void;
   onBack: () => void;
 }
 
-const PaywallView: React.FC<PaywallViewProps> = ({ onUpgrade, onBack }) => {
+const PaywallView: React.FC<PaywallViewProps> = ({
+  selectedPackageId,
+  packageOptions,
+  isPurchasing,
+  onSelectPackage,
+  onUpgrade,
+  onBack,
+}) => {
   return (
     <div className="min-h-screen bg-[#063026] text-white p-8 flex flex-col relative overflow-hidden">
       {/* Dynamic Background */}
@@ -49,14 +66,32 @@ const PaywallView: React.FC<PaywallViewProps> = ({ onUpgrade, onBack }) => {
       </div>
 
       <div className="relative py-10 flex flex-col gap-4 z-10">
-        <button 
-          onClick={onUpgrade}
+        <div className="w-full grid gap-3">
+          {packageOptions.map((pkg) => (
+            <button
+              key={pkg.id}
+              onClick={() => onSelectPackage(pkg.id)}
+              className={`w-full p-4 rounded-2xl border text-left transition-all ${
+                selectedPackageId === pkg.id
+                  ? 'bg-white/15 border-emerald-300'
+                  : 'bg-white/5 border-white/10 hover:bg-white/10'
+              }`}
+            >
+              <p className="font-bold text-base">{pkg.title}</p>
+              <p className="text-xs text-emerald-100/80 mt-1">{pkg.subtitle}</p>
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => onUpgrade(selectedPackageId)}
+          disabled={isPurchasing}
           className="w-full bg-emerald-400 text-[#063026] py-6 rounded-3xl font-black text-lg shadow-2xl shadow-emerald-400/20 active:scale-[0.98] transition-all hover:bg-emerald-300"
         >
-          $14.99 / Lifetime Access
+          {isPurchasing ? 'Processing...' : 'Continue'}
         </button>
         <p className="text-[10px] text-emerald-400/40 text-center uppercase tracking-[0.3em] font-black">
-          Ramadan Special • One-time Purchase
+          Manage any plan from Profile -&gt; Manage Subscription
         </p>
       </div>
     </div>

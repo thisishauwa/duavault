@@ -98,7 +98,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ duas, onSelect, onToggleFavor
               </p>
               
               <p className="text-gray-500 text-sm italic font-medium line-clamp-2">
-                {dua.translation}
+                {dua.translation || 'No translation yet. Tap to add one later.'}
               </p>
             </div>
           ))

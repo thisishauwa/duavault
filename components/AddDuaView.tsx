@@ -7,9 +7,16 @@ import { ArrowLeft, Camera, Type, Loader2, Save, Sparkles, Trash2, Link as LinkI
 interface AddDuaViewProps {
   onSave: (dua: Omit<Dua, 'id' | 'createdAt' | 'isFavorite'>) => void;
   onBack: () => void;
+  onRequestTranslation: () => Promise<boolean>;
+  translationUsageLabel?: string | null;
 }
 
-const AddDuaView: React.FC<AddDuaViewProps> = ({ onSave, onBack }) => {
+const AddDuaView: React.FC<AddDuaViewProps> = ({
+  onSave,
+  onBack,
+  onRequestTranslation,
+  translationUsageLabel,
+}) => {
   const [inputMode, setInputMode] = useState<'options' | 'manual' | 'link'>('options');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,9 +56,9 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({ onSave, onBack }) => {
     setError(null);
     try {
       const compressed = await compressImageFile(file);
-      const result = await processDuaFromImage(compressed);
+      const result = await processDuaFromImage(compressed, false);
       setArabic(result.arabic);
-      setTranslation(result.translation);
+      setTranslation('');
       setCategory(result.category as Category);
       setSource('screenshot');
       setInputMode('manual');
@@ -68,9 +75,9 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({ onSave, onBack }) => {
     setIsProcessing(true);
     setError(null);
     try {
-      const result = await processDuaFromUrl(linkInput.trim());
+      const result = await processDuaFromUrl(linkInput.trim(), false);
       setArabic(result.arabic);
-      setTranslation(result.translation);
+      setTranslation('');
       setCategory(result.category as Category);
       setSource('link');
       setInputMode('manual');
@@ -84,6 +91,11 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({ onSave, onBack }) => {
 
   const handleGenerateAI = async () => {
     if (!arabic) return;
+    const canTranslate = await onRequestTranslation();
+    if (!canTranslate) {
+      setError('You have reached your free monthly translation limit.');
+      return;
+    }
     setIsProcessing(true);
     setError(null);
     try {
@@ -98,8 +110,8 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({ onSave, onBack }) => {
   };
 
   const handleSubmit = () => {
-    if (!arabic || !translation) {
-      setError("Both script and meaning are needed.");
+    if (!arabic) {
+      setError("Arabic script is required.");
       return;
     }
     onSave({ arabic, translation, category, source });
@@ -130,6 +142,14 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({ onSave, onBack }) => {
       </header>
 
       <div className="px-6 flex-1 flex flex-col pb-10">
+        {translationUsageLabel && (
+          <div className="mt-2 mb-2">
+            <p className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 inline-block">
+              {translationUsageLabel}
+            </p>
+          </div>
+        )}
+
         {inputMode === 'options' ? (
           <div className="flex flex-col gap-4 mt-6">
             <button 
