@@ -49,7 +49,6 @@ const App: React.FC = () => {
   const [isPremium, setIsPremium] = useState(false);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const [isGuestSession, setIsGuestSession] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAppHydrated, setIsAppHydrated] = useState(false);
   const [isCloudDataReady, setIsCloudDataReady] = useState(false);
@@ -69,57 +68,11 @@ const App: React.FC = () => {
   });
 
   useEffect(() => {
-    const guestStatus = localStorage.getItem('duaVault_guest');
-    const isGuest = guestStatus === 'true';
-    setIsGuestSession(isGuest);
-
-    // Only hydrate local dua cache for guest sessions.
-    if (isGuest) {
-      const savedDuas = localStorage.getItem('duaVault_duas');
-      if (savedDuas) setDuas(JSON.parse(savedDuas));
-    }
-
     const onboardingStatus = localStorage.getItem('duaVault_onboarding');
     setHasCompletedOnboarding(onboardingStatus === 'true');
 
     setIsAppHydrated(true);
   }, []);
-
-  const currentGuestPeriodKey = () => {
-    const now = new Date();
-    return `duaVault_translation_used_${now.getUTCFullYear()}_${now.getUTCMonth() + 1}`;
-  };
-
-  const currentUserFallbackPeriodKey = (userId: string) => {
-    const now = new Date();
-    return `duaVault_translation_used_user_${userId}_${now.getUTCFullYear()}_${now.getUTCMonth() + 1}`;
-  };
-
-  const consumeLocalTranslationQuota = (storageKey: string) => {
-    const used = Number(localStorage.getItem(storageKey) ?? '0');
-    if (used >= FREE_TRANSLATION_LIMIT) {
-      setTranslationQuota({
-        allowed: false,
-        used,
-        remaining: 0,
-        periodStart: new Date().toISOString().slice(0, 10),
-        limit: FREE_TRANSLATION_LIMIT,
-      });
-      setCurrentView('paywall');
-      return false;
-    }
-
-    const nextUsed = used + 1;
-    localStorage.setItem(storageKey, String(nextUsed));
-    setTranslationQuota({
-      allowed: nextUsed < FREE_TRANSLATION_LIMIT,
-      used: nextUsed,
-      remaining: Math.max(FREE_TRANSLATION_LIMIT - nextUsed, 0),
-      periodStart: new Date().toISOString().slice(0, 10),
-      limit: FREE_TRANSLATION_LIMIT,
-    });
-    return true;
-  };
 
   useEffect(() => {
     if (!isAppHydrated) return;
@@ -144,8 +97,8 @@ const App: React.FC = () => {
       return;
     }
 
-    const used = isGuestSession ? Number(localStorage.getItem(currentGuestPeriodKey()) ?? '0') : 0;
-    const remaining = Math.max(FREE_TRANSLATION_LIMIT - used, 0);
+    const used = 0;
+    const remaining = FREE_TRANSLATION_LIMIT;
     setTranslationQuota({
       allowed: remaining > 0,
       used,
@@ -153,7 +106,7 @@ const App: React.FC = () => {
       periodStart: new Date().toISOString().slice(0, 10),
       limit: FREE_TRANSLATION_LIMIT,
     });
-  }, [isAppHydrated, user, isPremium, isGuestSession]);
+  }, [isAppHydrated, user, isPremium]);
 
   useEffect(() => {
     if (currentView !== 'paywall') return;
@@ -304,7 +257,6 @@ const App: React.FC = () => {
         }
 
         // User account is now source of truth for app data/state.
-        localStorage.removeItem('duaVault_guest');
         localStorage.removeItem('duaVault_duas');
         if (onboardingComplete) {
           localStorage.removeItem('duaVault_onboarding');
@@ -338,23 +290,10 @@ const App: React.FC = () => {
       return;
     }
 
-    if (isGuestSession) {
-      if (currentView === 'onboarding' || currentView === 'auth') {
-        setCurrentView('library');
-      }
-      return;
-    }
-
     if (currentView !== 'auth') {
       setCurrentView('auth');
     }
-  }, [isAppHydrated, isAuthReady, isCloudDataReady, hasCompletedOnboarding, user, isGuestSession, currentView]);
-
-  useEffect(() => {
-    if (!user && isGuestSession) {
-      localStorage.setItem('duaVault_duas', JSON.stringify(duas));
-    }
-  }, [duas, user, isGuestSession]);
+  }, [isAppHydrated, isAuthReady, isCloudDataReady, hasCompletedOnboarding, user, currentView]);
 
   const addDua = async (newDua: Omit<Dua, 'id' | 'createdAt' | 'isFavorite'>) => {
     const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -445,23 +384,15 @@ const App: React.FC = () => {
         console.error('Failed to update onboarding status:', error);
       }
     }
-    if (user || isGuestSession) {
+    if (user) {
       setCurrentView('library');
       return;
     }
     setCurrentView('auth');
   };
 
-  const handleContinueAsGuest = () => {
-    localStorage.setItem('duaVault_guest', 'true');
-    setIsGuestSession(true);
-    setCurrentView('library');
-  };
-
   const handleAuthenticated = () => {
-    localStorage.removeItem('duaVault_guest');
     localStorage.removeItem('duaVault_duas');
-    setIsGuestSession(false);
     setCurrentView('library');
   };
 
@@ -473,8 +404,6 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('RevenueCat logout failed:', error);
     }
-    localStorage.removeItem('duaVault_guest');
-    setIsGuestSession(false);
     setCurrentView('auth');
   };
 
@@ -563,12 +492,14 @@ const App: React.FC = () => {
         return true;
       } catch (error) {
         console.error('Failed to consume translation quota:', error);
-        // Fail closed to prevent bypassing paywall when quota infra errors.
-        return consumeLocalTranslationQuota(currentUserFallbackPeriodKey(user.id));
+        // Signed-in users should persist usage to Supabase; block translation when quota infra fails.
+        alert('Could not verify translation quota right now. Please try again.');
+        return false;
       }
     }
 
-    return consumeLocalTranslationQuota(currentGuestPeriodKey());
+    setCurrentView('auth');
+    return false;
   };
 
   const selectedDua = useMemo(() => duas.find(d => d.id === selectedDuaId), [duas, selectedDuaId]);
@@ -585,7 +516,7 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (currentView) {
       case 'onboarding': return <OnboardingView onComplete={handleOnboardingComplete} />;
-      case 'auth': return <AuthView onSkip={handleContinueAsGuest} onAuthenticated={handleAuthenticated} />;
+      case 'auth': return <AuthView onAuthenticated={handleAuthenticated} />;
       case 'library': return <LibraryView duas={duas} onSelect={(id) => { setSelectedDuaId(id); setCurrentView('detail'); }} onToggleFavorite={(id) => { void toggleFavorite(id); }} />;
       case 'detail': return selectedDua ? <DuaDetailView dua={selectedDua} onBack={() => setCurrentView('library')} onUpdate={(dua) => { void updateDua(dua); }} onDelete={(id) => { void deleteDua(id); }} onToggleFavorite={(id) => { void toggleFavorite(id); }} /> : null;
       case 'add': return <AddDuaView onSave={(dua) => { void addDua(dua); }} onBack={() => setCurrentView('library')} onRequestTranslation={requestTranslation} translationUsageLabel={translationUsageLabel} />;
@@ -632,32 +563,34 @@ const App: React.FC = () => {
       </main>
 
       {!isFullScreen && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-gray-100 px-6 py-2 flex justify-between items-center z-50 safe-bottom w-full">
-          <button 
-            onClick={() => setCurrentView('library')} 
-            className={`p-4 rounded-xl transition-all flex flex-col items-center gap-1 ${currentView === 'library' ? 'text-emerald-600' : 'text-gray-400'}`}
-          >
-            <LayoutGrid size={24} strokeWidth={2.5} />
-            <span className="text-[10px] font-bold">Library</span>
-          </button>
-          
-          <div className="relative -top-6">
+        <div className="fixed bottom-8 left-0 right-0 flex justify-center z-50 pointer-events-none">
+          <nav className="bg-[#1a1a1a] text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-8 pointer-events-auto ring-1 ring-white/10">
+            <button 
+              onClick={() => setCurrentView('library')} 
+              className={`p-2 transition-all hover:opacity-80 active:scale-95 ${currentView === 'library' ? 'opacity-100' : 'opacity-50'}`}
+            >
+              <LayoutGrid size={24} strokeWidth={2.5} />
+            </button>
+            
+            <div className="w-px h-6 bg-white/20" />
+
             <button 
               onClick={() => setCurrentView('add')}
-              className="bg-emerald-600 text-white p-4 rounded-full shadow-xl shadow-emerald-200 hover:scale-105 active:scale-95 transition-all outline-4 outline-white"
+              className="p-2 transition-all hover:opacity-80 active:scale-95"
             >
-              <Plus size={28} strokeWidth={3} />
+              <Plus size={28} strokeWidth={2.5} />
             </button>
-          </div>
 
-          <button 
-            onClick={() => setCurrentView('settings')}
-            className={`p-4 rounded-xl transition-all flex flex-col items-center gap-1 ${currentView === 'settings' ? 'text-emerald-600' : 'text-gray-400'}`}
-          >
-            <UserIcon size={24} strokeWidth={2.5} />
-            <span className="text-[10px] font-bold">Profile</span>
-          </button>
-        </nav>
+            <div className="w-px h-6 bg-white/20" />
+
+            <button 
+              onClick={() => setCurrentView('settings')}
+              className={`p-2 transition-all hover:opacity-80 active:scale-95 ${currentView === 'settings' ? 'opacity-100' : 'opacity-50'}`}
+            >
+              <UserIcon size={24} strokeWidth={2.5} />
+            </button>
+          </nav>
+        </div>
       )}
     </div>
   );

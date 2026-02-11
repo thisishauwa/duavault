@@ -20,8 +20,7 @@ const ENTITLEMENT_FALLBACKS = [
   'pro_access',
 ];
 
-const REVENUECAT_API_KEY =
-  import.meta.env.VITE_REVENUECAT_API_KEY ?? 'test_jHOZtuKtQFiUwMURDZjpSPxXJKV';
+const REVENUECAT_API_KEY = import.meta.env.VITE_REVENUECAT_API_KEY as string | undefined;
 
 let isConfigured = false;
 
@@ -54,7 +53,10 @@ export const derivePlanFromCustomerInfo = (customerInfo: CustomerInfo | null | u
 
 export const initializeRevenueCat = async (appUserId?: string) => {
   if (!isNative()) return false;
-  if (!REVENUECAT_API_KEY) return false;
+  if (!REVENUECAT_API_KEY) {
+    console.warn('RevenueCat API key missing. Set VITE_REVENUECAT_API_KEY in your environment.');
+    return false;
+  }
 
   if (!isConfigured) {
     await Purchases.setLogLevel({

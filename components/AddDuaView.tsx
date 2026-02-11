@@ -1,8 +1,8 @@
 
 import React, { useState, useRef } from 'react';
 import { Category, Dua } from '../types';
-import { processDuaFromImage, processDuaFromText, processDuaFromUrl } from '../services/geminiService';
-import { ArrowLeft, Camera, Type, Loader2, Save, Sparkles, Trash2, Link as LinkIcon } from 'lucide-react';
+import { processDuaFromImage, processDuaFromText } from '../services/geminiService';
+import { ArrowLeft, Camera, Type, Loader2, Save, Sparkles, Trash2 } from 'lucide-react';
 
 interface AddDuaViewProps {
   onSave: (dua: Omit<Dua, 'id' | 'createdAt' | 'isFavorite'>) => void;
@@ -17,10 +17,9 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
   onRequestTranslation,
   translationUsageLabel,
 }) => {
-  const [inputMode, setInputMode] = useState<'options' | 'manual' | 'link'>('options');
+  const [inputMode, setInputMode] = useState<'options' | 'manual'>('options');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [linkInput, setLinkInput] = useState('');
 
   const [arabic, setArabic] = useState('');
   const [translation, setTranslation] = useState('');
@@ -64,25 +63,6 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
       setInputMode('manual');
     } catch (err) {
       setError("Text illumination failed. Let's try typing it.");
-      setInputMode('manual');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleUrlSubmit = async () => {
-    if (!linkInput) return;
-    setIsProcessing(true);
-    setError(null);
-    try {
-      const result = await processDuaFromUrl(linkInput.trim(), false);
-      setArabic(result.arabic);
-      setTranslation('');
-      setCategory(result.category as Category);
-      setSource('link');
-      setInputMode('manual');
-    } catch (err) {
-      setError("Couldn't find a reflection there. Try manual entry.");
       setInputMode('manual');
     } finally {
       setIsProcessing(false);
@@ -167,19 +147,6 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
 
             <button 
-              onClick={() => setInputMode('link')}
-              className="flex items-center gap-5 p-6 bg-white border-2 border-gray-100 rounded-[2rem] hover:border-emerald-100 transition-all text-left"
-            >
-              <div className="w-14 h-14 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center">
-                <LinkIcon size={24} />
-              </div>
-              <div>
-                <h4 className="font-bold text-gray-900">Paste Link</h4>
-                <p className="text-gray-400 text-xs mt-0.5">Extract from a website</p>
-              </div>
-            </button>
-
-            <button 
               onClick={() => setInputMode('manual')}
               className="flex items-center gap-5 p-6 bg-white border-2 border-gray-100 rounded-[2rem] hover:border-emerald-100 transition-all text-left"
             >
@@ -191,30 +158,6 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
                 <p className="text-gray-400 text-xs mt-0.5">Type text directly</p>
               </div>
             </button>
-          </div>
-        ) : inputMode === 'link' ? (
-          <div className="flex flex-col gap-6 mt-6 animate-slide-up">
-            <div className="space-y-4">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Website URL</label>
-              <input 
-                type="url"
-                value={linkInput}
-                onChange={(e) => setLinkInput(e.target.value)}
-                placeholder="https://example.com/reflection..."
-                className="w-full bg-gray-50 border-2 border-transparent focus:bg-white focus:border-emerald-100 rounded-2xl py-4 px-6 transition-all outline-none text-sm font-medium"
-              />
-              <button 
-                onClick={handleUrlSubmit}
-                disabled={!linkInput}
-                className="w-full py-5 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                <Sparkles size={20} />
-                Extract Reflection
-              </button>
-              <button onClick={() => setInputMode('options')} className="w-full py-2 text-gray-400 text-[11px] font-bold uppercase tracking-widest">
-                Cancel
-              </button>
-            </div>
           </div>
         ) : (
           <div className="flex flex-col gap-6 mt-6 animate-slide-up">

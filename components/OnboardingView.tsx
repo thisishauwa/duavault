@@ -1,6 +1,5 @@
 
 import React, { useState } from 'react';
-import { Camera, Languages, Bookmark, ChevronRight } from 'lucide-react';
 
 interface OnboardingViewProps {
   onComplete: () => void;
@@ -8,17 +7,14 @@ interface OnboardingViewProps {
 
 const steps = [
   {
-    icon: <Camera size={40} strokeWidth={2.5} className="text-emerald-600" />,
     title: "Capture every reflection",
     description: "Found a beautiful dua online? Simply upload a screenshot and let the vault preserve it."
   },
   {
-    icon: <Languages size={40} strokeWidth={2.5} className="text-emerald-600" />,
     title: "AI Illumination",
     description: "Our AI extracts the script and provides poetic translations automatically."
   },
   {
-    icon: <Bookmark size={40} strokeWidth={2.5} className="text-emerald-600" />,
     title: "Your spiritual library",
     description: "Organize by category and search through your collections whenever you need focus."
   }
@@ -36,38 +32,36 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) => {
   };
 
   return (
-    <div className="h-screen bg-white flex flex-col p-8 relative overflow-hidden">
-      <div className="flex-1 flex flex-col items-center justify-center text-center gap-10">
-        <div className="w-24 h-24 bg-emerald-50 rounded-[2rem] flex items-center justify-center animate-in zoom-in duration-500">
-          {steps[currentStep].icon}
-        </div>
-        
-        <div className="flex flex-col gap-3 px-4">
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+    <div className="h-full w-full bg-white flex flex-col relative overflow-hidden text-[#1a1a1a]">
+      {/* Progress Indicators - Top Left */}
+      <div className="pt-8 px-8 flex justify-start gap-2">
+        {steps.map((_, i) => (
+          <div
+            key={i}
+            className={`h-1.5 rounded-full transition-all duration-300 ${
+              currentStep === i ? 'w-8 bg-[#006B3F]' : 'w-1.5 bg-[#e0e0e0]'
+            }`}
+          />
+        ))}
+      </div>
+
+      <div className="flex-1 flex flex-col justify-center px-8 gap-6 max-w-md mx-auto w-full">
+        <div className="flex flex-col gap-1 animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <h1 className="text-5xl font-normal leading-[1.1] tracking-tight font-header">
             {steps[currentStep].title}
           </h1>
-          <p className="text-gray-400 font-medium leading-relaxed max-w-xs mx-auto text-sm">
+          <p className="text-lg text-[#666666] leading-relaxed font-sans max-w-xs">
             {steps[currentStep].description}
           </p>
         </div>
       </div>
 
-      <div className="py-10 flex flex-col items-center gap-10">
-        <div className="flex gap-2">
-          {steps.map((_, i) => (
-            <div 
-              key={i} 
-              className={`h-2 rounded-full transition-all duration-300 ${currentStep === i ? 'w-10 bg-emerald-600' : 'w-2 bg-gray-100'}`}
-            />
-          ))}
-        </div>
-
-        <button 
+      <div className="p-8 pb-12 w-full max-w-md mx-auto">
+        <button
           onClick={next}
-          className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-bold shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all active:scale-98"
+          className="w-full bg-[#006B3F] text-[#fcfbf9] py-4 rounded-lg font-sans font-medium text-base hover:bg-[#005a35] transition-all active:scale-[0.99]"
         >
-          {currentStep === steps.length - 1 ? "Start your vault" : "Next"}
-          <ChevronRight size={20} strokeWidth={3} />
+          {currentStep === steps.length - 1 ? "Start your vault" : "Continue"}
         </button>
       </div>
     </div>

@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Dua, Category } from '../types';
-import { Search, Heart, Sparkles, Filter } from 'lucide-react';
+import { Search, Heart, Sparkles } from 'lucide-react';
 
 interface LibraryViewProps {
   duas: Dua[];
@@ -25,61 +25,56 @@ const LibraryView: React.FC<LibraryViewProps> = ({ duas, onSelect, onToggleFavor
   return (
     <div className="min-h-screen bg-white">
       {/* Header Section */}
-      <header className="px-6 pt-10 pb-6 bg-white sticky top-0 z-40">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Your Vault</h1>
-            <p className="text-sm font-medium text-gray-400">{duas.length} reflections</p>
-          </div>
-          <button className="p-3 bg-gray-50 rounded-2xl text-gray-400 hover:text-emerald-600 transition-colors">
-            <Filter size={20} />
-          </button>
+      <header className="px-6 pt-12 pb-6 bg-white sticky top-0 z-40 flex flex-col gap-6 border-b border-[#f3f4f6]">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-5xl font-normal leading-[1.1] tracking-tight font-header text-[#1a1a1a]">Salam, Friend</h1>
+          <p className="text-base text-[#666666] font-sans">{duas.length} reflections saved</p>
         </div>
 
-        {/* Minimal Search */}
+        {/* Search */}
         <div className="relative group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-emerald-500 transition-colors" size={18} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#9ca3af] group-focus-within:text-[#006B3F] transition-colors" size={20} />
           <input 
             type="text" 
             placeholder="Search meaning or script..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-gray-50 border-2 border-transparent focus:bg-white focus:border-emerald-100 rounded-2xl py-4 pl-12 pr-4 transition-all outline-none text-sm font-medium placeholder:text-gray-400"
+            className="w-full bg-[#f3f4f6] border border-transparent focus:bg-white focus:border-[#006B3F] rounded-lg py-3.5 pl-11 pr-4 transition-all outline-none text-base font-sans placeholder:text-[#9ca3af]"
           />
+        </div>
+
+        {/* Horizontal Filter Bar */}
+        <div className="-mx-6 px-6">
+          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+            {['All', ...Object.values(Category)].map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat as any)}
+                className={`px-4 py-2 rounded-lg text-sm font-sans font-medium whitespace-nowrap transition-all duration-200 border ${
+                  selectedCategory === cat 
+                    ? 'bg-[#006B3F] text-white border-[#006B3F]' 
+                    : 'bg-white text-[#666666] border-[#e0e0e0] hover:border-[#006B3F] hover:text-[#006B3F]'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
-      {/* Horizontal Filter Bar */}
-      <div className="px-6 mb-6">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
-          {['All', ...Object.values(Category)].map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat as any)}
-              className={`px-5 py-2.5 rounded-2xl text-[13px] font-bold whitespace-nowrap transition-all duration-200 ${
-                selectedCategory === cat 
-                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-100' 
-                  : 'bg-white text-gray-500 border-2 border-gray-100 hover:border-emerald-100'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* List / Grid */}
-      <div className="px-6 pb-24 grid gap-4">
+      <div className="px-6 py-6 pb-32 grid gap-4">
         {filteredDuas.length > 0 ? (
           filteredDuas.map((dua, idx) => (
             <div 
               key={dua.id} 
               onClick={() => onSelect(dua.id)}
-              className="animate-slide-up bg-white p-6 rounded-[2rem] dua-card cursor-pointer group relative overflow-hidden"
+              className="animate-in fade-in slide-in-from-bottom-2 duration-500 bg-[#f9f9f9] p-5 rounded-xl cursor-pointer group relative transition-colors hover:bg-[#f0f0f0]"
               style={{ animationDelay: `${idx * 0.05}s` }}
             >
-              <div className="flex justify-between items-start mb-4">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl">
+              <div className="flex justify-between items-start mb-3">
+                <span className="text-xs uppercase font-bold tracking-wider text-[#666666] bg-[#eaeaea] px-2 py-1 rounded-md font-sans">
                   {dua.category}
                 </span>
                 <button 
@@ -89,26 +84,28 @@ const LibraryView: React.FC<LibraryViewProps> = ({ duas, onSelect, onToggleFavor
                   }}
                   className="p-1 active:scale-125 transition-transform"
                 >
-                  <Heart size={18} className={dua.isFavorite ? 'fill-rose-500 text-rose-500' : 'text-gray-200 group-hover:text-gray-300'} />
+                  <Heart size={20} className={dua.isFavorite ? 'fill-[#e11d48] text-[#e11d48]' : 'text-[#d1d5db] group-hover:text-[#9ca3af]'} strokeWidth={2} />
                 </button>
               </div>
 
-              <p className="font-arabic text-2xl mb-3 text-right leading-relaxed text-gray-900" dir="rtl">
-                {dua.arabic.length > 70 ? dua.arabic.substring(0, 70) + '...' : dua.arabic}
+              <p className="font-arabic text-2xl mb-4 text-right leading-loose text-[#1a1a1a]" dir="rtl">
+                {dua.arabic.length > 80 ? dua.arabic.substring(0, 80) + '...' : dua.arabic}
               </p>
               
-              <p className="text-gray-500 text-sm italic font-medium line-clamp-2">
-                {dua.translation || 'No translation yet. Tap to add one later.'}
+              <p className="text-[#666666] text-sm leading-relaxed font-sans line-clamp-2">
+                {dua.translation || 'No translation available.'}
               </p>
             </div>
           ))
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-              <Sparkles size={24} className="text-gray-300" />
+          <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+            <div className="w-16 h-16 bg-[#f3f4f6] rounded-full flex items-center justify-center">
+              <Sparkles size={24} className="text-[#9ca3af]" />
             </div>
-            <p className="font-bold text-gray-900">Your vault is quiet</p>
-            <p className="text-sm text-gray-400 mt-1">Add your first treasure to begin.</p>
+            <div className="flex flex-col gap-1">
+              <p className="font-header text-4xl text-[#1a1a1a]">Empty Vault</p>
+              <p className="text-sm text-[#666666] font-sans">Add your first treasure to begin.</p>
+            </div>
           </div>
         )}
       </div>

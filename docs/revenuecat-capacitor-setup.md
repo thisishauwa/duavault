@@ -20,7 +20,7 @@ npm run build:mobile
 Set these in `.env.local`:
 
 ```env
-VITE_REVENUECAT_API_KEY=test_jHOZtuKtQFiUwMURDZjpSPxXJKV
+VITE_REVENUECAT_API_KEY=your_revenuecat_public_sdk_key
 # Optional:
 VITE_REVENUECAT_PLACEMENT_ID=
 VITE_REVENUECAT_OFFERING_ID=
@@ -57,9 +57,11 @@ Set it as Default Offering (or serve by placement/targeting).
 
 ## 4) Paywall and purchase behavior in app
 
-The app uses RevenueCat Paywalls UI:
+The app uses the in-app paywall design and purchases RevenueCat packages directly:
 
-- Open paywall from paywall screen (`presentPaywall`)
+- Open paywall from app paywall screen
+- Select package (monthly/yearly/lifetime) from dynamic offerings
+- Purchase via `purchasePackage(...)`
 - Manage billing from Settings (`presentCustomerCenter`)
 - Restore purchases in Settings (`restorePurchases`)
 - Premium access is controlled by entitlement `Dua Vault Pro`

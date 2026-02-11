@@ -255,41 +255,45 @@ export const fetchTranslationQuota = async (userId: string, limit: number): Prom
 
 export const consumeTranslationQuota = async (limit: number): Promise<TranslationQuota> => {
   const periodStart = getCurrentPeriodStart();
+  const consumeViaClientFallback = async () => {
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+    if (!userId) throw new Error('Not authenticated');
+
+    const current = await fetchTranslationQuota(userId, limit);
+    if (!current.allowed) return current;
+
+    const nextUsed = current.used + 1;
+    const { error: upsertError } = await supabase.from('translation_usage').upsert(
+      {
+        user_id: userId,
+        period_start: periodStart,
+        used_count: nextUsed,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,period_start' }
+    );
+    if (upsertError) throw upsertError;
+
+    return {
+      allowed: nextUsed <= limit,
+      used: nextUsed,
+      remaining: Math.max(limit - nextUsed, 0),
+      periodStart,
+      limit,
+    };
+  };
+
   const { data, error } = await supabase.rpc('consume_translation_quota', {
     p_limit: limit,
   });
 
   if (error) {
-    if (error.code === '42883') {
-      // RPC missing - fallback to non-atomic client flow.
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      if (!userId) throw error;
-
-      const current = await fetchTranslationQuota(userId, limit);
-      if (!current.allowed) return current;
-
-      const nextUsed = current.used + 1;
-      const { error: upsertError } = await supabase.from('translation_usage').upsert(
-        {
-          user_id: userId,
-          period_start: periodStart,
-          used_count: nextUsed,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,period_start' }
-      );
-      if (upsertError) throw upsertError;
-
-      return {
-        allowed: nextUsed <= limit,
-        used: nextUsed,
-        remaining: Math.max(limit - nextUsed, 0),
-        periodStart,
-        limit,
-      };
+    // If RPC is unavailable/misconfigured, try direct table-based fallback so usage still persists.
+    // We only skip fallback when table itself is missing.
+    if (error.code !== '42P01') {
+      return await consumeViaClientFallback();
     }
-    if (error.code === '42P01') throw error;
     throw error;
   }
 

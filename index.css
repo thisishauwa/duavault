@@ -1,13 +1,37 @@
 @import "tailwindcss";
 @source ".";
 
+@font-face {
+  font-family: "PPMondwest";
+  src: url("./font/ppmondwest-regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Custom base styles */
 :root {
   --safe-top: env(safe-area-inset-top);
   --safe-bottom: env(safe-area-inset-bottom);
+  font-family: 'Figtree', sans-serif;
+}
+
+@theme {
+  --color-emerald-600: #006B3F;
+  --color-emerald-700: #005a35; /* Darker shade for hover */
+  --font-sans: 'Figtree', sans-serif;
 }
 
 body {
   /* Prevent rubber-banding on iOS */
   overscroll-behavior-y: none;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "PPMondwest", "Figtree", sans-serif;
 }
