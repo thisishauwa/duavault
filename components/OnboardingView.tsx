@@ -47,7 +47,7 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) => {
 
       <div className="flex-1 flex flex-col justify-center px-8 gap-6 max-w-md mx-auto w-full">
         <div className="flex flex-col gap-1 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <h1 className="text-5xl font-normal leading-[1.1] tracking-tight font-header">
+          <h1 className="text-4xl font-normal leading-[1.1] tracking-tight font-header">
             {steps[currentStep].title}
           </h1>
           <p className="text-lg text-[#666666] leading-relaxed font-sans max-w-xs">

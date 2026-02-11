@@ -71,9 +71,8 @@ const AuthView: React.FC<AuthViewProps> = ({ onAuthenticated }) => {
     <div className="h-full w-full bg-white flex flex-col justify-center px-8 relative overflow-hidden text-[#1a1a1a]">
       <div className="w-full max-w-md mx-auto flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
         
-        {/* Header Section */}
         <div className="flex flex-col gap-1">
-          <h1 className="text-5xl font-normal leading-[1.1] tracking-tight font-header">
+          <h1 className="text-4xl font-normal leading-[1.1] tracking-tight font-header">
             {isSignUp ? 'Create account' : 'Welcome back'}
           </h1>
           <p className="text-lg text-[#666666] leading-relaxed font-sans max-w-xs">

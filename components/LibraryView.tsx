@@ -27,8 +27,8 @@ const LibraryView: React.FC<LibraryViewProps> = ({ duas, onSelect, onToggleFavor
       {/* Header Section */}
       <header className="px-6 pt-12 pb-6 bg-white sticky top-0 z-40 flex flex-col gap-6 border-b border-[#f3f4f6]">
         <div className="flex flex-col gap-1">
-          <h1 className="text-5xl font-normal leading-[1.1] tracking-tight font-header text-[#1a1a1a]">Salam, Friend</h1>
-          <p className="text-base text-[#666666] font-sans">{duas.length} reflections saved</p>
+          <h1 className="text-4xl font-normal leading-[1.1] tracking-tight font-header text-[#1a1a1a]">Salam, friend</h1>
+          <p className="text-base text-[#666666] font-sans">{duas.length} duas saved</p>
         </div>
 
         {/* Search */}
