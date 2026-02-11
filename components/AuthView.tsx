@@ -90,7 +90,7 @@ const AuthView: React.FC<AuthViewProps> = ({ onAuthenticated }) => {
               placeholder="Email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-[#f3f4f6] border border-transparent focus:border-[#006B3F] focus:bg-white px-5 py-4 text-lg font-sans placeholder:text-[#9ca3af] focus:outline-none transition-all rounded-lg"
+              className="w-full bg-[#f9fafb] border border-transparent focus:border-[#006B3F] focus:bg-white px-5 py-4 text-lg font-sans placeholder:text-[#9ca3af] focus:outline-none transition-all rounded-lg"
               autoComplete="email"
             />
 
@@ -100,7 +100,7 @@ const AuthView: React.FC<AuthViewProps> = ({ onAuthenticated }) => {
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#f3f4f6] border border-transparent focus:border-[#006B3F] focus:bg-white px-5 py-4 text-lg font-sans placeholder:text-[#9ca3af] focus:outline-none transition-all rounded-lg pr-12"
+                className="w-full bg-[#f9fafb] border border-transparent focus:border-[#006B3F] focus:bg-white px-5 py-4 text-lg font-sans placeholder:text-[#9ca3af] focus:outline-none transition-all rounded-lg pr-12"
                 autoComplete={isSignUp ? 'new-password' : 'current-password'}
               />
               <button
@@ -118,7 +118,7 @@ const AuthView: React.FC<AuthViewProps> = ({ onAuthenticated }) => {
                 placeholder="Confirm password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full bg-[#f3f4f6] border border-transparent focus:border-[#006B3F] focus:bg-white px-5 py-4 text-lg font-sans placeholder:text-[#9ca3af] focus:outline-none transition-all rounded-lg"
+                className="w-full bg-[#f9fafb] border border-transparent focus:border-[#006B3F] focus:bg-white px-5 py-4 text-lg font-sans placeholder:text-[#9ca3af] focus:outline-none transition-all rounded-lg"
                 autoComplete="new-password"
               />
             )}

@@ -20,6 +20,7 @@
   --color-emerald-600: #006B3F;
   --color-emerald-700: #005a35; /* Darker shade for hover */
   --font-sans: 'Figtree', sans-serif;
+  --font-header: "PPMondwest", "Figtree", sans-serif;
 }
 
 body {

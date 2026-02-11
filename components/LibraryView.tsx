@@ -1,13 +1,25 @@
 
 import React, { useState, useMemo } from 'react';
 import { Dua, Category } from '../types';
-import { Search, Heart, Sparkles } from 'lucide-react';
+import { Search, Heart } from 'lucide-react';
 
 interface LibraryViewProps {
   duas: Dua[];
   onSelect: (id: string) => void;
   onToggleFavorite: (id: string) => void;
 }
+
+const CATEGORY_TABS: Array<{ value: Category | 'All'; label: string; emoji: string }> = [
+  { value: 'All', label: 'All', emoji: '✨' },
+  { value: Category.MorningEvening, label: 'Morning/Evening', emoji: '☀️' },
+  { value: Category.Travel, label: 'Travel', emoji: '✈️' },
+  { value: Category.Food, label: 'Food', emoji: '🍔' },
+  { value: Category.Sleep, label: 'Sleep', emoji: '🌙' },
+  { value: Category.Protection, label: 'Protection', emoji: '🛡️' },
+  { value: Category.Gratitude, label: 'Gratitude', emoji: '🤲' },
+  { value: Category.General, label: 'General', emoji: '📿' },
+  { value: Category.Other, label: 'Other', emoji: '💫' },
+];
 
 const LibraryView: React.FC<LibraryViewProps> = ({ duas, onSelect, onToggleFavorite }) => {
   const [search, setSearch] = useState('');
@@ -23,9 +35,9 @@ const LibraryView: React.FC<LibraryViewProps> = ({ duas, onSelect, onToggleFavor
   }, [duas, search, selectedCategory]);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="h-full bg-white flex flex-col">
       {/* Header Section */}
-      <header className="px-6 pt-12 pb-6 bg-white sticky top-0 z-40 flex flex-col gap-6 border-b border-[#f3f4f6]">
+      <header className="px-6 pt-12 pb-0 bg-white sticky top-0 z-40 flex flex-col gap-6">
         <div className="flex flex-col gap-1">
           <h1 className="text-4xl font-normal leading-[1.1] tracking-tight font-header text-[#1a1a1a]">Salam, friend</h1>
           <p className="text-base text-[#666666] font-sans">{duas.length} duas saved</p>
@@ -39,34 +51,42 @@ const LibraryView: React.FC<LibraryViewProps> = ({ duas, onSelect, onToggleFavor
             placeholder="Search meaning or script..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-[#f3f4f6] border border-transparent focus:bg-white focus:border-[#006B3F] rounded-lg py-3.5 pl-11 pr-4 transition-all outline-none text-base font-sans placeholder:text-[#9ca3af]"
+            className="w-full bg-[#f9fafb] border border-transparent focus:bg-white focus:border-[#006B3F] rounded-lg py-3.5 pl-11 pr-4 transition-all outline-none text-base font-sans placeholder:text-[#9ca3af]"
           />
         </div>
 
         {/* Horizontal Filter Bar */}
-        <div className="-mx-6 px-6">
-          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
-            {['All', ...Object.values(Category)].map((cat) => (
+        <div className="-mx-6 px-6 border-b border-[#e5e7eb]">
+          <div className="flex gap-8 overflow-x-auto no-scrollbar pt-2">
+            {CATEGORY_TABS.map((tab) => {
+              const isActive = selectedCategory === tab.value;
+              return (
               <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat as any)}
-                className={`px-4 py-2 rounded-lg text-sm font-sans font-medium whitespace-nowrap transition-all duration-200 border ${
-                  selectedCategory === cat 
-                    ? 'bg-[#006B3F] text-white border-[#006B3F]' 
-                    : 'bg-white text-[#666666] border-[#e0e0e0] hover:border-[#006B3F] hover:text-[#006B3F]'
+                key={tab.value}
+                onClick={() => setSelectedCategory(tab.value)}
+                className={`shrink-0 flex flex-col items-center gap-2 pb-3 border-b-2 transition-all min-w-[60px] ${
+                  isActive
+                    ? 'border-[#1a1a1a] text-[#1a1a1a] opacity-100'
+                    : 'border-transparent text-[#9ca3af] hover:text-[#666666] opacity-60 hover:opacity-100 hover:border-[#e5e7eb]'
                 }`}
               >
-                {cat}
+                <span className="text-[24px] leading-normal transform transition-transform group-active:scale-95 py-1">
+                  {tab.emoji}
+                </span>
+                <span className="text-[12px] font-sans font-medium whitespace-nowrap">
+                  {tab.label}
+                </span>
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       </header>
 
       {/* List / Grid */}
-      <div className="px-6 py-6 pb-32 grid gap-4">
-        {filteredDuas.length > 0 ? (
-          filteredDuas.map((dua, idx) => (
+      {filteredDuas.length > 0 ? (
+        <div className="px-6 py-6 pb-32 grid gap-4">
+          {filteredDuas.map((dua, idx) => (
             <div 
               key={dua.id} 
               onClick={() => onSelect(dua.id)}
@@ -96,19 +116,19 @@ const LibraryView: React.FC<LibraryViewProps> = ({ duas, onSelect, onToggleFavor
                 {dua.translation || 'No translation available.'}
               </p>
             </div>
-          ))
-        ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
-            <div className="w-16 h-16 bg-[#f3f4f6] rounded-full flex items-center justify-center">
-              <Sparkles size={24} className="text-[#9ca3af]" />
-            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 pb-32">
+          <div className="flex flex-col items-center justify-center text-center gap-4 animate-in fade-in zoom-in duration-500">
+            <span className="text-5xl mb-1">🌱</span>
             <div className="flex flex-col gap-1">
-              <p className="font-header text-4xl text-[#1a1a1a]">Empty Vault</p>
-              <p className="text-sm text-[#666666] font-sans">Add your first treasure to begin.</p>
+              <p className="font-header text-[32px] leading-tight text-[#1a1a1a]">Nothing to see here...</p>
+              <p className="text-sm text-[#666666] font-sans">Add your first dua to begin.</p>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
