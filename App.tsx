@@ -554,7 +554,7 @@ const App: React.FC = () => {
     }
   };
 
-  const isFullScreen = ['onboarding', 'paywall', 'auth'].includes(currentView);
+  const isFullScreen = ['onboarding', 'paywall', 'auth', 'add'].includes(currentView);
 
   return (
     <div className="h-dvh w-screen bg-white overflow-hidden flex flex-col relative text-gray-900">

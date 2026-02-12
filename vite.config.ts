@@ -8,6 +8,13 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        watch: {
+          ignored: [
+            '**/ios/DerivedData/**',
+            '**/ios/App/Pods/**',
+            '**/android/.gradle/**',
+          ],
+        },
       },
       plugins: [react()],
       define: {
