@@ -1,7 +1,7 @@
 import { PSM, createWorker } from 'tesseract.js';
 import stableCorePath from 'tesseract.js-core/tesseract-core-lstm.wasm.js?url';
 
-type OcrResult = {
+export type OcrResult = {
   arabic: string;
   confidence: number;
   rawText: string;
@@ -15,6 +15,7 @@ const NON_ARABIC_ALLOWED_REGEX = /[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB5
 const MIN_WORD_CONFIDENCE = 35;
 
 const hasArabic = (text: string) => ARABIC_CHAR_REGEX.test(text);
+const countArabicChars = (text: string) => (text.match(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/g) ?? []).length;
 
 const sanitizeArabicChunk = (text: string) => {
   return text
@@ -192,4 +193,22 @@ export const extractArabicFromImage = async (dataUrl: string): Promise<OcrResult
     throw new Error('OCR could not find clear Arabic text.');
   }
   return best;
+};
+
+export const shouldRunAiCleanup = (result: OcrResult): boolean => {
+  const normalized = result.arabic.replace(/\s+/g, ' ').trim();
+  const tokens = normalized.split(' ').filter(Boolean);
+  const singleLetterTokens = tokens.filter((t) => t.length <= 1).length;
+  const singleTokenRatio = tokens.length ? singleLetterTokens / tokens.length : 1;
+  const arabicRatioFromRaw = result.rawText.length
+    ? countArabicChars(result.rawText) / result.rawText.length
+    : 0;
+
+  // Run cleanup only when OCR seems noisy/low-confidence.
+  return (
+    result.confidence < 82 ||
+    normalized.length < 20 ||
+    singleTokenRatio > 0.22 ||
+    arabicRatioFromRaw < 0.45
+  );
 };

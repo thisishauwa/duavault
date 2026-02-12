@@ -483,7 +483,7 @@ const App: React.FC = () => {
 
     if (user) {
       try {
-        const quota = await consumeTranslationQuota(FREE_TRANSLATION_LIMIT);
+        const quota = await fetchTranslationQuota(user.id, FREE_TRANSLATION_LIMIT);
         setTranslationQuota(quota);
         if (!quota.allowed) {
           setCurrentView('paywall');
@@ -500,6 +500,17 @@ const App: React.FC = () => {
 
     setCurrentView('auth');
     return false;
+  };
+
+  const commitSuccessfulTranslation = async () => {
+    if (isPremium || !user) return;
+    try {
+      const quota = await consumeTranslationQuota(FREE_TRANSLATION_LIMIT);
+      setTranslationQuota(quota);
+    } catch (error) {
+      // Translation already succeeded; log usage sync failure without blocking UX.
+      console.error('Failed to sync successful translation usage:', error);
+    }
   };
 
   const selectedDua = useMemo(() => duas.find(d => d.id === selectedDuaId), [duas, selectedDuaId]);
@@ -519,7 +530,15 @@ const App: React.FC = () => {
       case 'auth': return <AuthView onAuthenticated={handleAuthenticated} />;
       case 'library': return <LibraryView duas={duas} onSelect={(id) => { setSelectedDuaId(id); setCurrentView('detail'); }} onToggleFavorite={(id) => { void toggleFavorite(id); }} />;
       case 'detail': return selectedDua ? <DuaDetailView dua={selectedDua} onBack={() => setCurrentView('library')} onUpdate={(dua) => { void updateDua(dua); }} onDelete={(id) => { void deleteDua(id); }} onToggleFavorite={(id) => { void toggleFavorite(id); }} /> : null;
-      case 'add': return <AddDuaView onSave={(dua) => { void addDua(dua); }} onBack={() => setCurrentView('library')} onRequestTranslation={requestTranslation} translationUsageLabel={translationUsageLabel} />;
+      case 'add': return (
+        <AddDuaView
+          onSave={(dua) => { void addDua(dua); }}
+          onBack={() => setCurrentView('library')}
+          onRequestTranslation={requestTranslation}
+          onTranslationSuccess={commitSuccessfulTranslation}
+          translationUsageLabel={translationUsageLabel}
+        />
+      );
       case 'paywall': return (
         <PaywallView
           selectedPackageId={selectedPlanId}

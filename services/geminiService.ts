@@ -8,6 +8,7 @@ const REQUEST_TIMEOUT_MS = 20000;
 const responseCache = new Map<string, { arabic: string; translation: string; category: string }>();
 const IMAGE_REQUEST_TIMEOUT_MS = 30000;
 const MAX_IMAGE_EXTRACTION_ATTEMPTS = 3;
+const MAX_TEXT_AI_ATTEMPTS = 2;
 
 const DUA_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
@@ -53,6 +54,7 @@ const OCR_ARABIC_CLEANUP_SCHEMA = {
   },
   required: ['arabic'],
 };
+
 
 const withTimeout = async <T>(promise: Promise<T>, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> => {
   return await Promise.race([
@@ -101,6 +103,45 @@ const getInlineImagePart = (base64Image: string) => {
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const extractStatusCode = (error: unknown): number | null => {
+  if (!error || typeof error !== 'object') return null;
+  const candidate = error as { status?: number; code?: number; response?: { status?: number } };
+  if (typeof candidate.status === 'number') return candidate.status;
+  if (typeof candidate.code === 'number') return candidate.code;
+  if (typeof candidate.response?.status === 'number') return candidate.response.status;
+  return null;
+};
+
+const isRetriableAiError = (error: unknown) => {
+  const status = extractStatusCode(error);
+  if (status === 429) return false;
+  if (status === 503 || status === 504) return true;
+  if (!(error instanceof Error)) return false;
+  const msg = error.message.toLowerCase();
+  if (msg.includes('429') || msg.includes('too many requests')) return false;
+  return msg.includes('503') || msg.includes('service unavailable') || msg.includes('overloaded') || msg.includes('timeout');
+};
+
+const generateContentWithRetry = async (
+  request: Parameters<typeof ai.models.generateContent>[0],
+  timeoutMs = REQUEST_TIMEOUT_MS,
+  maxAttempts = MAX_TEXT_AI_ATTEMPTS
+) => {
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      return await withTimeout(ai.models.generateContent(request), timeoutMs);
+    } catch (error) {
+      lastError = error;
+      if (!isRetriableAiError(error) || attempt === maxAttempts - 1) {
+        throw error;
+      }
+      await sleep(700 * (attempt + 1));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('AI request failed.');
+};
 
 const getCached = (key: string) => responseCache.get(key);
 const setCached = (key: string, value: { arabic: string; translation: string; category: string }) => {
@@ -186,23 +227,29 @@ export const processDuaFromText = async (arabicText: string) => {
   if (cached) return cached;
 
   const model = 'gemini-3-flash-preview';
-  const response = await withTimeout(
-    ai.models.generateContent({
-      model,
-      contents: `Translate this Arabic dua and categorize it. Return JSON with arabic, translation, category. Categories: ${Object.values(Category).join(', ')}.
-      Arabic: "${cleaned}"`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: DUA_RESPONSE_SCHEMA,
-        temperature: 0.1,
-      },
-    })
-  );
+  const response = await generateContentWithRetry({
+    model,
+    contents: `You are translating a dua from Arabic to English.
+Return strict JSON: arabic, translation, category.
+
+Rules:
+- Keep the Arabic text exactly as provided.
+- translation must be faithful, clear, and concise (no extra commentary).
+- Do not invent words that are not in the Arabic text.
+- category must be one of: ${Object.values(Category).join(', ')}.
+
+Arabic:
+"${cleaned}"`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: DUA_RESPONSE_SCHEMA,
+      temperature: 0.05,
+    },
+  });
   const parsed = normalizeResult(response.text);
   setCached(cacheKey, parsed);
   return parsed;
 };
-
 export const cleanupArabicOcrText = async (arabicText: string) => {
   const cleaned = arabicText.trim();
   if (!cleaned) return cleaned;
@@ -212,28 +259,25 @@ export const cleanupArabicOcrText = async (arabicText: string) => {
   if (cached) return cached.arabic;
 
   const model = 'gemini-3-flash-preview';
-  const response = await withTimeout(
-    ai.models.generateContent({
-      model,
-      contents: `You are correcting OCR mistakes in Arabic dua text.
-Return JSON with only one field: arabic.
+  const response = await generateContentWithRetry({
+    model,
+    contents: `You are correcting OCR mistakes in Arabic dua text.
+Return strict JSON with one field: arabic.
 
 Rules:
 - Keep it Arabic only.
 - Fix obvious OCR joins/splits and letter mistakes.
-- Do NOT add new sentences or extra phrases.
-- Preserve the intended wording as closely as possible.
+- Do NOT add phrases, commentary, or extra words.
+- Keep meaning exactly the same.
 
 OCR text:
 "${cleaned}"`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: OCR_ARABIC_CLEANUP_SCHEMA,
-        temperature: 0,
-      },
-    }),
-    12000
-  );
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: OCR_ARABIC_CLEANUP_SCHEMA,
+      temperature: 0,
+    },
+  }, 12000, 1);
 
   const fixedArabic = normalizeArabicOnly(response.text) || cleaned;
   const result = {

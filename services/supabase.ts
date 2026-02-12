@@ -10,7 +10,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Please set VITE_PUBLIC_SUPABASE_URL and VITE_PUBLIC_SUPABASE_ANON_KEY in .env.local');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const SUPABASE_CLIENT_KEY = '__duaVaultSupabaseClient__';
+const globalScope = globalThis as typeof globalThis & {
+  [SUPABASE_CLIENT_KEY]?: ReturnType<typeof createClient>;
+};
+
+export const supabase =
+  globalScope[SUPABASE_CLIENT_KEY] ?? createClient(supabaseUrl, supabaseAnonKey);
+
+if (!globalScope[SUPABASE_CLIENT_KEY]) {
+  globalScope[SUPABASE_CLIENT_KEY] = supabase;
+}
 
 type BasicUser = {
   id: string;
@@ -255,56 +265,54 @@ export const fetchTranslationQuota = async (userId: string, limit: number): Prom
 
 export const consumeTranslationQuota = async (limit: number): Promise<TranslationQuota> => {
   const periodStart = getCurrentPeriodStart();
-  const consumeViaClientFallback = async () => {
-    const { data: userData } = await supabase.auth.getUser();
-    const userId = userData.user?.id;
-    if (!userId) throw new Error('Not authenticated');
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData.user?.id;
+  if (!userId) throw new Error('Not authenticated');
 
-    const current = await fetchTranslationQuota(userId, limit);
-    if (!current.allowed) return current;
+  // Pure client-side path (no RPC) to avoid 400 spam from missing/mismatched RPC signatures.
+  // 1) Try insert for first usage this month.
+  const { error: insertError } = await supabase.from('translation_usage').insert({
+    user_id: userId,
+    period_start: periodStart,
+    used_count: 1,
+    updated_at: new Date().toISOString(),
+  });
 
-    const nextUsed = current.used + 1;
-    const { error: upsertError } = await supabase.from('translation_usage').upsert(
-      {
-        user_id: userId,
-        period_start: periodStart,
-        used_count: nextUsed,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id,period_start' }
-    );
-    if (upsertError) throw upsertError;
-
+  if (!insertError) {
     return {
-      allowed: nextUsed <= limit,
-      used: nextUsed,
-      remaining: Math.max(limit - nextUsed, 0),
+      allowed: true,
+      used: 1,
+      remaining: Math.max(limit - 1, 0),
       periodStart,
       limit,
     };
-  };
-
-  const { data, error } = await supabase.rpc('consume_translation_quota', {
-    p_limit: limit,
-  });
-
-  if (error) {
-    // If RPC is unavailable/misconfigured, try direct table-based fallback so usage still persists.
-    // We only skip fallback when table itself is missing.
-    if (error.code !== '42P01') {
-      return await consumeViaClientFallback();
-    }
-    throw error;
   }
 
-  const row = Array.isArray(data) ? data[0] : data;
-  const used = row?.used_count ?? 0;
-  const remaining = Math.max(row?.remaining ?? Math.max(limit - used, 0), 0);
+  if (insertError.code === '42P01') {
+    throw insertError;
+  }
+
+  // If row exists, increment only when still under limit.
+  const current = await fetchTranslationQuota(userId, limit);
+  if (!current.allowed) return current;
+
+  const nextUsed = current.used + 1;
+  const { error: upsertError } = await supabase.from('translation_usage').upsert(
+    {
+      user_id: userId,
+      period_start: periodStart,
+      used_count: nextUsed,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id,period_start' }
+  );
+  if (upsertError) throw upsertError;
+
   return {
-    allowed: Boolean(row?.allowed),
-    used,
-    remaining,
-    periodStart: row?.period_start ?? periodStart,
+    allowed: nextUsed <= limit,
+    used: nextUsed,
+    remaining: Math.max(limit - nextUsed, 0),
+    periodStart,
     limit,
   };
 };

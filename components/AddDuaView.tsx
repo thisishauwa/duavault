@@ -9,6 +9,7 @@ interface AddDuaViewProps {
   onSave: (dua: Omit<Dua, 'id' | 'createdAt' | 'isFavorite'>) => void;
   onBack: () => void;
   onRequestTranslation: () => Promise<boolean>;
+  onTranslationSuccess: () => Promise<void>;
   translationUsageLabel?: string | null;
 }
 
@@ -16,6 +17,7 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
   onSave,
   onBack,
   onRequestTranslation,
+  onTranslationSuccess,
   translationUsageLabel,
 }) => {
   const [inputMode, setInputMode] = useState<'options' | 'manual'>('options');
@@ -70,11 +72,11 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
       let finalizedArabic = extracted.arabic;
       try {
         const corrected = await cleanupArabicOcrText(extracted.arabic);
-        if (corrected && corrected.length >= 4) {
+        if (corrected && corrected.length >= 6) {
           finalizedArabic = corrected;
         }
       } catch {
-        // Keep raw OCR output when cleanup model is unavailable.
+        // Keep raw OCR if cleanup request is unavailable/rate-limited.
       }
 
       setArabic(finalizedArabic);
@@ -104,8 +106,14 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
       const result = await processDuaFromText(arabic);
       setTranslation(result.translation);
       setCategory(result.category as Category);
+      await onTranslationSuccess();
     } catch (err) {
-      setError("AI is resting. Please add the meaning manually.");
+      const message = err instanceof Error ? err.message : '';
+      if (message.includes('429') || message.toLowerCase().includes('too many requests')) {
+        setError('Translation service is busy right now. Please wait a moment and try again.');
+      } else {
+        setError('Could not translate right now. Please add the meaning manually.');
+      }
     } finally {
       setIsProcessing(false);
     }
