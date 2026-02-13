@@ -7,8 +7,10 @@ type PackageOption = {
   title: string;
   subtitle: string;
 };
+type PaywallEntryReason = 'default' | 'dua_limit' | 'translation_limit';
 
 interface PaywallViewProps {
+  entryReason?: PaywallEntryReason;
   selectedPackageId: 'monthly' | 'yearly' | 'lifetime';
   packageOptions: PackageOption[];
   isPurchasing: boolean;
@@ -18,6 +20,7 @@ interface PaywallViewProps {
 }
 
 const PaywallView: React.FC<PaywallViewProps> = ({
+  entryReason = 'default',
   selectedPackageId,
   packageOptions,
   isPurchasing,
@@ -25,6 +28,22 @@ const PaywallView: React.FC<PaywallViewProps> = ({
   onUpgrade,
   onBack,
 }) => {
+  const paywallCopy =
+    entryReason === 'dua_limit'
+      ? {
+          title: 'You reached your free 10 duas',
+          subtitle: 'Upgrade to keep saving every reflection without limits.',
+        }
+      : entryReason === 'translation_limit'
+        ? {
+            title: 'You reached this month\'s free translations',
+            subtitle: 'Upgrade for unlimited translations anytime you need them.',
+          }
+        : {
+            title: 'Elevate Your Reflection',
+            subtitle: 'Preserve every spiritual treasure with DuaVault Premium.',
+          };
+
   return (
     <div className="min-h-screen bg-[#063026] text-white p-8 flex flex-col relative overflow-hidden">
       {/* Dynamic Background */}
@@ -44,8 +63,8 @@ const PaywallView: React.FC<PaywallViewProps> = ({
         <div className="w-20 h-20 bg-gradient-to-tr from-emerald-400 to-emerald-600 p-5 rounded-[2rem] shadow-2xl shadow-emerald-400/20 mb-6 flex items-center justify-center">
           <Sparkles size={40} className="text-white" />
         </div>
-        <h2 className="text-4xl font-black tracking-tight leading-none">Elevate Your Reflection</h2>
-        <p className="text-emerald-200/60 text-sm mt-2 max-w-[280px]">Preserve every spiritual treasure with DuaVault Premium.</p>
+        <h2 className="text-4xl font-black tracking-tight leading-none">{paywallCopy.title}</h2>
+        <p className="text-emerald-200/60 text-sm mt-2 max-w-[320px]">{paywallCopy.subtitle}</p>
 
         <div className="mt-12 w-full grid gap-5">
           {[

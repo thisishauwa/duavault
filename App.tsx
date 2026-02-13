@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { View, Dua } from './types';
 import LibraryView from './components/LibraryView';
 import DuaDetailView from './components/DuaDetailView';
@@ -19,10 +20,7 @@ import {
   upsertUserDuas,
   fetchUserPreferences,
   setUserOnboardingCompleted,
-  consumeTranslationQuota,
-  fetchTranslationQuota,
   upsertUserSubscription,
-  type TranslationQuota,
 } from './services/supabase';
 import {
   derivePlanFromCustomerInfo,
@@ -31,6 +29,7 @@ import {
   getRevenueCatCustomerInfo,
   hasDuaVaultProEntitlement,
   initializeRevenueCat,
+  presentDuaVaultPaywall,
   presentRevenueCatCustomerCenter,
   purchaseRevenueCatPackage,
   type RevenueCatPlanId,
@@ -40,7 +39,9 @@ import {
 import { LayoutGrid, Plus, User as UserIcon } from 'lucide-react';
 import type { PurchasesPackage } from '@revenuecat/purchases-capacitor';
 
-const FREE_TRANSLATION_LIMIT = 3;
+const FREE_DUA_SAVE_LIMIT = 10;
+type PaywallEntryReason = 'default' | 'dua_limit' | 'translation_limit';
+type PaywallReturnView = 'library' | 'settings';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('onboarding');
@@ -59,13 +60,8 @@ const App: React.FC = () => {
     yearly?: PurchasesPackage;
     lifetime?: PurchasesPackage;
   }>({});
-  const [translationQuota, setTranslationQuota] = useState<TranslationQuota>({
-    allowed: true,
-    used: 0,
-    remaining: FREE_TRANSLATION_LIMIT,
-    periodStart: new Date().toISOString().slice(0, 10),
-    limit: FREE_TRANSLATION_LIMIT,
-  });
+  const [paywallEntryReason, setPaywallEntryReason] = useState<PaywallEntryReason>('default');
+  const [paywallReturnView, setPaywallReturnView] = useState<PaywallReturnView>('library');
 
   useEffect(() => {
     const onboardingStatus = localStorage.getItem('duaVault_onboarding');
@@ -73,40 +69,6 @@ const App: React.FC = () => {
 
     setIsAppHydrated(true);
   }, []);
-
-  useEffect(() => {
-    if (!isAppHydrated) return;
-
-    if (isPremium) {
-      setTranslationQuota({
-        allowed: true,
-        used: 0,
-        remaining: Number.MAX_SAFE_INTEGER,
-        periodStart: new Date().toISOString().slice(0, 10),
-        limit: Number.MAX_SAFE_INTEGER,
-      });
-      return;
-    }
-
-    if (user) {
-      fetchTranslationQuota(user.id, FREE_TRANSLATION_LIMIT)
-        .then(setTranslationQuota)
-        .catch((error) => {
-          console.error('Failed to fetch translation quota:', error);
-        });
-      return;
-    }
-
-    const used = 0;
-    const remaining = FREE_TRANSLATION_LIMIT;
-    setTranslationQuota({
-      allowed: remaining > 0,
-      used,
-      remaining,
-      periodStart: new Date().toISOString().slice(0, 10),
-      limit: FREE_TRANSLATION_LIMIT,
-    });
-  }, [isAppHydrated, user, isPremium]);
 
   useEffect(() => {
     if (currentView !== 'paywall') return;
@@ -299,6 +261,14 @@ const App: React.FC = () => {
     const { data: { user: authUser } } = await supabase.auth.getUser();
     const activeUserId = user?.id ?? authUser?.id;
 
+    if (!isPremium && duas.length >= FREE_DUA_SAVE_LIMIT) {
+      setPaywallEntryReason('dua_limit');
+      setPaywallReturnView('library');
+      setCurrentView('paywall');
+      alert(`Free plan allows up to ${FREE_DUA_SAVE_LIMIT} saved duas. Upgrade to keep adding more.`);
+      return;
+    }
+
     try {
       if (activeUserId) {
         const created = await createUserDua(activeUserId, newDua);
@@ -442,6 +412,11 @@ const App: React.FC = () => {
     try {
       await presentRevenueCatCustomerCenter();
       const info = await getRevenueCatCustomerInfo();
+      if (!info) {
+        setPaywallEntryReason('default');
+        setCurrentView('paywall');
+        return;
+      }
       const premiumActive = hasDuaVaultProEntitlement(info);
       setIsPremium(premiumActive);
       if (user?.id) {
@@ -454,13 +429,24 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Customer Center failed:', error);
-      alert('Could not open subscription management right now.');
+      // Fallback to in-app paywall if Customer Center is unavailable/misconfigured.
+      setPaywallEntryReason('default');
+      setPaywallReturnView('settings');
+      setCurrentView('paywall');
     }
   };
 
   const handleRestorePurchases = async () => {
     try {
+      // Ensure RevenueCat is attached to the current authenticated user before restore.
+      if (user?.id) {
+        await syncRevenueCatUser(user.id);
+      }
       const info = await restoreRevenueCatPurchases();
+      if (!info) {
+        alert('Restore Purchases is available on the iOS/Android app.');
+        return;
+      }
       const premiumActive = hasDuaVaultProEntitlement(info);
       setIsPremium(premiumActive);
       if (user?.id) {
@@ -471,57 +457,103 @@ const App: React.FC = () => {
           console.error('Failed to sync subscription state:', syncError);
         }
       }
-      alert('Purchases restored.');
+      alert(premiumActive ? 'Purchases restored.' : 'No active purchases found to restore.');
     } catch (error) {
       console.error('Restore purchases failed:', error);
       alert('Could not restore purchases right now.');
     }
   };
 
-  const requestTranslation = async () => {
-    if (isPremium) return true;
-
-    if (user) {
-      try {
-        const quota = await fetchTranslationQuota(user.id, FREE_TRANSLATION_LIMIT);
-        setTranslationQuota(quota);
-        if (!quota.allowed) {
-          setCurrentView('paywall');
-          return false;
-        }
-        return true;
-      } catch (error) {
-        console.error('Failed to consume translation quota:', error);
-        // Signed-in users should persist usage to Supabase; block translation when quota infra fails.
-        alert('Could not verify translation quota right now. Please try again.');
-        return false;
-      }
+  const handleManageSubscriptionFromSettings = async () => {
+    if (!isPremium) {
+      // Show the same in-app paywall with payment options (not the native RC one).
+      setPaywallEntryReason('default');
+      setPaywallReturnView('settings');
+      setCurrentView('paywall');
+      return;
     }
-
-    setCurrentView('auth');
-    return false;
+    await handleOpenCustomerCenter();
   };
 
-  const commitSuccessfulTranslation = async () => {
-    if (isPremium || !user) return;
+  const handleOpenPaywallFromSettings = async () => {
     try {
-      const quota = await consumeTranslationQuota(FREE_TRANSLATION_LIMIT);
-      setTranslationQuota(quota);
+      if (!Capacitor.isNativePlatform()) {
+        setPaywallEntryReason('default');
+        setPaywallReturnView('settings');
+        setCurrentView('paywall');
+        return;
+      }
+
+      // Native path: always prefer RevenueCat paywall UI.
+      await presentDuaVaultPaywall();
+
+      const info = await getRevenueCatCustomerInfo();
+      if (!info) return;
+
+      const premiumActive = hasDuaVaultProEntitlement(info);
+      setIsPremium(premiumActive);
+
+      if (user?.id) {
+        const plan = derivePlanFromCustomerInfo(info);
+        try {
+          await upsertUserSubscription(user.id, premiumActive ? 'active' : 'inactive', plan === 'free' ? 'free' : plan);
+        } catch (syncError) {
+          console.error('Failed to sync subscription state:', syncError);
+        }
+      }
     } catch (error) {
-      // Translation already succeeded; log usage sync failure without blocking UX.
-      console.error('Failed to sync successful translation usage:', error);
+      console.error('Failed to open paywall:', error);
+      setPaywallEntryReason('default');
+      setPaywallReturnView('settings');
+      setCurrentView('paywall');
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const activeUserId = user?.id ?? authUser?.id;
+
+    try {
+      if (activeUserId) {
+        const { error: duasError } = await supabase.from('duas').delete().eq('user_id', activeUserId);
+        if (duasError) throw duasError;
+
+        const { error: prefsError } = await supabase.from('user_preferences').delete().eq('user_id', activeUserId);
+        if (prefsError && prefsError.code !== '42P01') throw prefsError;
+
+        const { error: usageError } = await supabase.from('translation_usage').delete().eq('user_id', activeUserId);
+        if (usageError && usageError.code !== '42P01') throw usageError;
+
+        const { error: subscriptionsError } = await supabase.from('subscriptions').delete().eq('user_id', activeUserId);
+        if (subscriptionsError && subscriptionsError.code !== '42P01') throw subscriptionsError;
+      }
+
+      setDuas([]);
+      localStorage.removeItem('duaVault_duas');
+
+      await handleSignOut();
+      alert('Your data has been deleted.');
+    } catch (error) {
+      console.error('Failed to delete account data:', error);
+      alert('Could not delete your data right now. Please try again.');
     }
   };
 
   const selectedDua = useMemo(() => duas.find(d => d.id === selectedDuaId), [duas, selectedDuaId]);
-  const translationUsageLabel = useMemo(() => {
-    if (isPremium) return 'Unlimited translations (Dua Vault Pro)';
-    if (!Number.isFinite(translationQuota.limit) || translationQuota.limit <= 0) return null;
-    return `Translations this month: ${translationQuota.used}/${translationQuota.limit} used`;
-  }, [isPremium, translationQuota.used, translationQuota.limit]);
+  const duaSaveUsageLabel = useMemo(() => {
+    if (isPremium) return 'Unlimited saved duas (Dua Vault Pro)';
+    return `Saved duas: ${duas.length}/${FREE_DUA_SAVE_LIMIT}`;
+  }, [isPremium, duas.length]);
 
   if (!isAppHydrated || !isAuthReady || !isCloudDataReady) {
-    return <div className="h-dvh w-screen bg-white" />;
+    return (
+      <div className="h-dvh w-screen bg-white flex items-center justify-center px-6">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="h-10 w-10 rounded-full border-2 border-[#d1d5db] border-t-[#006B3F] animate-spin" />
+          <p className="text-sm text-[#4b5563] font-sans">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
   }
 
   const renderContent = () => {
@@ -534,13 +566,12 @@ const App: React.FC = () => {
         <AddDuaView
           onSave={(dua) => { void addDua(dua); }}
           onBack={() => setCurrentView('library')}
-          onRequestTranslation={requestTranslation}
-          onTranslationSuccess={commitSuccessfulTranslation}
-          translationUsageLabel={translationUsageLabel}
+          saveUsageLabel={duaSaveUsageLabel}
         />
       );
       case 'paywall': return (
         <PaywallView
+          entryReason={paywallEntryReason}
           selectedPackageId={selectedPlanId}
           packageOptions={[
             {
@@ -565,10 +596,10 @@ const App: React.FC = () => {
             setSelectedPlanId(id);
             void handleUpgrade(id);
           }}
-          onBack={() => setCurrentView('library')}
+          onBack={() => setCurrentView(paywallReturnView)}
         />
       );
-      case 'settings': return <SettingsView user={user} isPremium={isPremium} onBack={() => setCurrentView('library')} onOpenPaywall={() => setCurrentView('paywall')} onOpenAuth={() => setCurrentView('auth')} onSignOut={handleSignOut} onOpenCustomerCenter={handleOpenCustomerCenter} onRestorePurchases={handleRestorePurchases} />;
+      case 'settings': return <SettingsView user={user} isPremium={isPremium} onBack={() => setCurrentView('library')} onOpenPaywall={() => { void handleOpenPaywallFromSettings(); }} onOpenAuth={() => setCurrentView('auth')} onSignOut={handleSignOut} onOpenCustomerCenter={handleManageSubscriptionFromSettings} onRestorePurchases={handleRestorePurchases} onDeleteAccount={handleDeleteAccount} />;
       default: return <LibraryView duas={duas} onSelect={(id) => { setSelectedDuaId(id); setCurrentView('detail'); }} onToggleFavorite={toggleFavorite} />;
     }
   };
@@ -594,7 +625,15 @@ const App: React.FC = () => {
             <div className="w-px h-6 bg-white/20" />
 
             <button 
-              onClick={() => setCurrentView('add')}
+              onClick={() => {
+                if (!isPremium && duas.length >= FREE_DUA_SAVE_LIMIT) {
+                  setPaywallEntryReason('dua_limit');
+                  setPaywallReturnView('library');
+                  setCurrentView('paywall');
+                  return;
+                }
+                setCurrentView('add');
+              }}
               className="p-2 transition-all hover:opacity-80 active:scale-95"
             >
               <Plus size={28} strokeWidth={2.5} />

@@ -1,6 +1,5 @@
-
-import React from 'react';
-import { ArrowLeft, LogOut, Shield, FileText, Trash2, Sparkles, ChevronRight, User as UserIcon, Crown, RefreshCw } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowLeft, LogOut, Shield, FileText, Trash2, Sparkles, ChevronRight, User as UserIcon, Crown, RefreshCw, Mail } from 'lucide-react';
 
 interface SettingsViewProps {
   user: any;
@@ -11,6 +10,7 @@ interface SettingsViewProps {
   onSignOut: () => Promise<void>;
   onOpenCustomerCenter: () => Promise<void>;
   onRestorePurchases: () => Promise<void>;
+  onDeleteAccount: () => Promise<void>;
 }
 
 const SettingsView: React.FC<SettingsViewProps> = ({
@@ -22,159 +22,219 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   onSignOut,
   onOpenCustomerCenter,
   onRestorePurchases,
+  onDeleteAccount,
 }) => {
+  const [isManagingSubscription, setIsManagingSubscription] = useState(false);
+  const [isRestoringPurchases, setIsRestoringPurchases] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
   const handleLogout = async () => {
     if (window.confirm('Are you sure you want to sign out?')) {
       await onSignOut();
     }
   };
 
+  const handleManageSubscription = async () => {
+    setIsManagingSubscription(true);
+    try {
+      await onOpenCustomerCenter();
+    } finally {
+      setIsManagingSubscription(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    setIsRestoringPurchases(true);
+    try {
+      await onRestorePurchases();
+    } finally {
+      setIsRestoringPurchases(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('This will remove your saved duas and sign you out. Continue?')) return;
+    setIsDeletingAccount(true);
+    try {
+      await onDeleteAccount();
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
+  const openExternal = (url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const MenuItem = ({ 
+    icon: Icon, 
+    label, 
+    sublabel, 
+    onClick, 
+    textColor = "text-[#1a1a1a]",
+    iconColor = "text-[#1a1a1a]",
+    showArrow = true
+  }: { 
+    icon: any, 
+    label: string, 
+    sublabel?: string, 
+    onClick?: () => void,
+    textColor?: string,
+    iconColor?: string,
+    showArrow?: boolean
+  }) => (
+    <button 
+      onClick={onClick}
+      className="w-full flex items-center justify-between py-4 group hover:bg-[#f9fafb] -mx-4 px-4 transition-colors rounded-lg"
+    >
+      <div className="flex items-center gap-4">
+        <Icon size={20} className={iconColor} strokeWidth={1.5} />
+        <div className="text-left">
+          <p className={`font-sans text-base ${textColor}`}>{label}</p>
+          {sublabel && <p className="text-xs text-[#666666] mt-0.5 font-sans">{sublabel}</p>}
+        </div>
+      </div>
+      {showArrow && <ChevronRight size={16} className="text-[#d1d5db] group-hover:text-[#9ca3af] transition-colors" />}
+    </button>
+  );
+
   return (
-    <div className="min-h-screen bg-white">
-      <header className="p-6 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-30">
-        <button onClick={onBack} className="p-3 bg-gray-50 rounded-2xl text-gray-400 hover:text-gray-900 transition-colors">
-          <ArrowLeft size={20} />
+    <div className="h-full bg-white flex flex-col">
+      {/* Header */}
+      <header className="px-6 pt-4 pb-6 bg-white sticky top-0 z-30 flex items-center justify-between">
+        <button onClick={onBack} className="p-2 -ml-2 text-[#9ca3af] hover:text-[#1a1a1a] transition-colors">
+          <ArrowLeft size={24} />
         </button>
-        <h2 className="text-lg font-extrabold text-gray-900">Profile</h2>
-        <div className="w-10" />
       </header>
 
-      <div className="px-6 pb-20 space-y-8 animate-slide-up">
-        {/* Profile Header */}
-        <div className="flex flex-col items-center pt-4">
-          <div className="w-24 h-24 bg-emerald-50 rounded-[2.5rem] flex items-center justify-center mb-4 border-4 border-white shadow-sm">
+      <div className="px-6 flex-1 flex flex-col pb-10 max-w-md mx-auto w-full">
+        <div className="flex flex-col gap-2 mb-10">
+          <h1 className="text-4xl font-header text-[#1a1a1a]">Profile</h1>
+          <p className="text-[#666666] font-sans text-base">Manage your account and preferences.</p>
+        </div>
+
+        {/* User Card */}
+        <div className="flex items-center gap-4 mb-10 p-4 bg-[#f9fafb] rounded-xl">
+          <div className="w-12 h-12 bg-[#e5e7eb] rounded-full flex items-center justify-center text-[#666666] shrink-0">
             {user?.user_metadata?.avatar_url ? (
-              <img src={user.user_metadata.avatar_url} alt="Avatar" className="w-full h-full rounded-[2.5rem] object-cover" />
+              <img src={user.user_metadata.avatar_url} alt="Avatar" className="w-full h-full rounded-full object-cover" />
             ) : (
-              <UserIcon size={40} className="text-emerald-600" />
+              <UserIcon size={24} />
             )}
           </div>
-          <h3 className="text-xl font-bold text-gray-900">{user?.email || 'Guest Explorer'}</h3>
-          <p className="text-sm font-medium text-gray-400 mt-1">
-            {isPremium ? 'Premium Vault Member' : 'Free Tier'}
-          </p>
+          <div className="overflow-hidden">
+            <h3 className="font-sans font-medium text-lg text-[#1a1a1a] truncate">
+              {user?.email || 'Guest Explorer'}
+            </h3>
+            <p className="text-sm text-[#666666] font-sans">
+              {isPremium ? 'Premium Vault Member' : 'Free Tier'}
+            </p>
+          </div>
         </div>
 
-        {/* Upgrade Card */}
+        {/* Upgrade Banner (if free) */}
         {!isPremium && (
-          <button 
-            onClick={onOpenPaywall}
-            className="w-full p-6 bg-emerald-600 text-white rounded-[2rem] flex items-center justify-between shadow-lg shadow-emerald-100 group overflow-hidden relative"
-          >
-            <div className="relative z-10 text-left">
-              <h4 className="font-bold text-lg leading-tight">Go Premium</h4>
-              <p className="text-emerald-100 text-xs mt-1">Unlimited storage & AI features</p>
-            </div>
-            <div className="relative z-10 bg-white/20 p-3 rounded-2xl">
-              <Sparkles size={20} />
-            </div>
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl" />
-          </button>
+          <div className="mb-10">
+            <button 
+              onClick={onOpenPaywall}
+              className="w-full bg-[#1a1a1a] text-white p-6 rounded-xl text-left hover:bg-black transition-colors group relative overflow-hidden"
+            >
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-2 text-[#4ade80]">
+                  <Sparkles size={16} fill="currentColor" />
+                  <span className="text-xs font-bold uppercase tracking-wider">Premium</span>
+                </div>
+                <h3 className="font-header text-2xl mb-1">Upgrade your vault</h3>
+                <p className="text-gray-400 font-sans text-sm">Unlock unlimited storage & AI features.</p>
+              </div>
+            </button>
+          </div>
         )}
 
-        {/* Settings Sections */}
-        <div className="space-y-6">
-          <div className="space-y-3">
-            <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">Account</h5>
-            <div className="bg-gray-50 rounded-[2rem] overflow-hidden">
+        {/* Menu Sections */}
+        <div className="space-y-8">
+          {/* Account Section */}
+          <div>
+            <h4 className="text-xs font-bold text-[#9ca3af] uppercase tracking-widest mb-2 px-1">Account</h4>
+            <div className="flex flex-col">
               {user ? (
                 <>
-                  <button
-                    onClick={() => void onOpenCustomerCenter()}
-                    className="w-full flex items-center justify-between p-5 hover:bg-gray-100 transition-colors border-b border-gray-100/50"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-emerald-600">
-                        <Crown size={18} />
-                      </div>
-                      <span className="text-sm font-bold text-gray-700">Manage Subscription</span>
-                    </div>
-                    <ChevronRight size={16} className="text-gray-300" />
-                  </button>
-                  <button
-                    onClick={() => void onRestorePurchases()}
-                    className="w-full flex items-center justify-between p-5 hover:bg-gray-100 transition-colors border-b border-gray-100/50"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-gray-400">
-                        <RefreshCw size={18} />
-                      </div>
-                      <span className="text-sm font-bold text-gray-700">Restore Purchases</span>
-                    </div>
-                    <ChevronRight size={16} className="text-gray-300" />
-                  </button>
-                  <button 
+                  <MenuItem
+                    icon={Crown}
+                    label={isManagingSubscription ? 'Opening subscription...' : 'Manage Subscription'}
+                    onClick={() => { void handleManageSubscription(); }}
+                  />
+                  <MenuItem 
+                    icon={RefreshCw} 
+                    label={isRestoringPurchases ? 'Restoring purchases...' : 'Restore Purchases'} 
+                    onClick={() => { void handleRestore(); }} 
+                  />
+                  <MenuItem 
+                    icon={LogOut} 
+                    label="Sign Out" 
                     onClick={handleLogout}
-                    className="w-full flex items-center justify-between p-5 hover:bg-gray-100 transition-colors border-b border-gray-100/50"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-gray-400">
-                        <LogOut size={18} />
-                      </div>
-                      <span className="text-sm font-bold text-gray-700">Sign Out</span>
-                    </div>
-                    <ChevronRight size={16} className="text-gray-300" />
-                  </button>
+                    textColor="text-[#666666] hover:text-[#1a1a1a]"
+                  />
                 </>
               ) : (
-                <button 
+                <MenuItem 
+                  icon={Sparkles} 
+                  label="Sign In to Sync" 
+                  sublabel="Save your duas to the cloud"
                   onClick={onOpenAuth}
-                  className="w-full flex items-center justify-between p-5 hover:bg-gray-100 transition-colors border-b border-gray-100/50"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-emerald-600">
-                      <Sparkles size={18} />
-                    </div>
-                    <span className="text-sm font-bold text-gray-700">Sign In to Sync</span>
-                  </div>
-                  <ChevronRight size={16} className="text-gray-300" />
-                </button>
+                  iconColor="text-[#006B3F]"
+                />
               )}
-              
-              <button 
-                onClick={() => window.confirm('This will permanently delete your local and cloud vault. Proceed?')}
-                className="w-full flex items-center justify-between p-5 hover:bg-gray-100 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-rose-300">
-                    <Trash2 size={18} />
-                  </div>
-                  <span className="text-sm font-bold text-rose-500">Delete Account</span>
-                </div>
-                <ChevronRight size={16} className="text-gray-300" />
-              </button>
             </div>
           </div>
 
-          <div className="space-y-3">
-            <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">Legal & Support</h5>
-            <div className="bg-gray-50 rounded-[2rem] overflow-hidden">
-              <button className="w-full flex items-center justify-between p-5 hover:bg-gray-100 transition-colors border-b border-gray-100/50 text-left">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-gray-400">
-                    <Shield size={18} />
-                  </div>
-                  <span className="text-sm font-bold text-gray-700">Privacy Policy</span>
-                </div>
-                <ChevronRight size={16} className="text-gray-300" />
-              </button>
-              <button className="w-full flex items-center justify-between p-5 hover:bg-gray-100 transition-colors text-left">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-gray-400">
-                    <FileText size={18} />
-                  </div>
-                  <span className="text-sm font-bold text-gray-700">Terms of Service</span>
-                </div>
-                <ChevronRight size={16} className="text-gray-300" />
-              </button>
+          {/* Support Section */}
+          <div>
+            <h4 className="text-xs font-bold text-[#9ca3af] uppercase tracking-widest mb-2 px-1">Support</h4>
+            <div className="flex flex-col">
+              <MenuItem 
+                icon={Shield} 
+                label="Privacy Policy" 
+                onClick={() => openExternal('https://duavault.app/privacy')}
+                showArrow={true}
+              />
+              <MenuItem 
+                icon={FileText} 
+                label="Terms of Service" 
+                onClick={() => openExternal('https://duavault.app/terms')}
+                showArrow={true}
+              />
+              <MenuItem 
+                icon={Mail} 
+                label="Contact Support" 
+                onClick={() => {
+                  window.location.href = 'mailto:support@duavault.app?subject=DuaVault%20Support';
+                }}
+                showArrow={true}
+              />
             </div>
           </div>
+
+          {/* Danger Zone */}
+          {user && (
+            <div>
+              <div className="flex flex-col border-t border-[#f3f4f6] pt-2">
+                <MenuItem 
+                  icon={Trash2} 
+                  label={isDeletingAccount ? 'Deleting account data...' : 'Delete Account'} 
+                  onClick={() => { void handleDelete(); }}
+                  textColor="text-rose-600"
+                  iconColor="text-rose-600"
+                  showArrow={false}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Footer info */}
-        <div className="text-center pt-8 pb-4">
-          <p className="text-[10px] text-gray-300 font-black uppercase tracking-[0.2em]">DuaVault v1.0.0</p>
-          <p className="text-[10px] text-gray-200 mt-1">Crafted for your spiritual journey</p>
+        {/* Footer */}
+        <div className="mt-12 text-center">
+          <p className="text-[10px] text-[#d1d5db] uppercase tracking-widest font-bold">DuaVault v1.0.0</p>
         </div>
       </div>
     </div>

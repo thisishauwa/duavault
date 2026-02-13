@@ -3,22 +3,18 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Category, Dua } from '../types';
 import { cleanupArabicOcrText, processDuaFromText } from '../services/geminiService';
 import { extractArabicFromImage } from '../services/ocrService';
-import { ArrowLeft, Camera, Type, Loader2, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowLeft, Camera, Type, Loader2, Trash2 } from 'lucide-react';
 
 interface AddDuaViewProps {
   onSave: (dua: Omit<Dua, 'id' | 'createdAt' | 'isFavorite'>) => void;
   onBack: () => void;
-  onRequestTranslation: () => Promise<boolean>;
-  onTranslationSuccess: () => Promise<void>;
-  translationUsageLabel?: string | null;
+  saveUsageLabel?: string | null;
 }
 
 const AddDuaView: React.FC<AddDuaViewProps> = ({
   onSave,
   onBack,
-  onRequestTranslation,
-  onTranslationSuccess,
-  translationUsageLabel,
+  saveUsageLabel,
 }) => {
   const [inputMode, setInputMode] = useState<'options' | 'manual'>('options');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -84,36 +80,18 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
       setCategory(Category.General);
       setSource('screenshot');
       setInputMode('manual');
+
+      try {
+        const result = await processDuaFromText(finalizedArabic);
+        setTranslation(result.translation);
+        setCategory(result.category as Category);
+      } catch {
+        setError('Could not auto-translate right now. You can still add the meaning manually.');
+      }
     } catch (err) {
       setError(null);
       setInputMode('options');
       showToast('Upload a clearer image to extract text.');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleGenerateAI = async () => {
-    if (!arabic) return;
-    const canTranslate = await onRequestTranslation();
-    if (!canTranslate) {
-      setError('You have reached your free monthly translation limit.');
-      return;
-    }
-    setIsProcessing(true);
-    setError(null);
-    try {
-      const result = await processDuaFromText(arabic);
-      setTranslation(result.translation);
-      setCategory(result.category as Category);
-      await onTranslationSuccess();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : '';
-      if (message.includes('429') || message.toLowerCase().includes('too many requests')) {
-        setError('Translation service is busy right now. Please wait a moment and try again.');
-      } else {
-        setError('Could not translate right now. Please add the meaning manually.');
-      }
     } finally {
       setIsProcessing(false);
     }
@@ -151,7 +129,7 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
         </div>
       )}
 
-      <header className="px-6 pt-12 pb-6 bg-white sticky top-0 z-30 flex items-center justify-between">
+      <header className="px-6 pt-4 pb-4 bg-white sticky top-0 z-30 flex items-center justify-between">
         <button onClick={onBack} className="p-2 -ml-2 text-[#9ca3af] hover:text-[#1a1a1a] transition-colors">
           <ArrowLeft size={24} />
         </button>
@@ -163,10 +141,10 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
           <p className="text-[#666666] font-sans text-base">Capture a new treasure for your vault.</p>
         </div>
 
-        {translationUsageLabel && (
-          <div className="mb-6">
-            <p className="text-[12px] font-medium text-[#006B3F] bg-[#e6f0eb] rounded-lg px-3 py-2 inline-block font-sans">
-              {translationUsageLabel}
+        {saveUsageLabel && (
+          <div className="mb-6 flex flex-col gap-2">
+            <p className="text-[12px] font-medium text-[#1a1a1a] bg-[#f3f4f6] rounded-lg px-3 py-2 inline-block font-sans">
+              {saveUsageLabel}
             </p>
           </div>
         )}
@@ -182,7 +160,7 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
               </div>
               <div>
                 <h4 className="font-sans font-medium text-lg text-[#1a1a1a]">Upload Image</h4>
-                <p className="text-[#666666] text-sm font-sans">AI reads text from gallery</p>
+                <p className="text-[#666666] text-sm font-sans">Extract and auto-translate from gallery</p>
               </div>
             </button>
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
@@ -227,15 +205,6 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
                   className="w-full bg-transparent border-none p-0 font-arabic text-4xl leading-[1.8] text-[#1a1a1a] placeholder:text-[#d1d5db] focus:ring-0 outline-none resize-none min-h-[120px] pt-2"
                 />
                 
-                {arabic && !translation && (
-                  <button 
-                    onClick={handleGenerateAI}
-                    className="mt-4 flex items-center gap-2 text-[#006B3F] font-medium text-sm hover:text-[#005a35] transition-colors"
-                  >
-                    <Sparkles size={16} />
-                    <span>Get translation</span>
-                  </button>
-                )}
               </div>
 
               {/* Translation - The Support */}
