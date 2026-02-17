@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { Category } from "../types";
 
 // Always use process.env.API_KEY for the Gemini API
@@ -9,6 +9,14 @@ const responseCache = new Map<string, { arabic: string; translation: string; cat
 const IMAGE_REQUEST_TIMEOUT_MS = 30000;
 const MAX_IMAGE_EXTRACTION_ATTEMPTS = 3;
 const MAX_TEXT_AI_ATTEMPTS = 2;
+
+// Apple requires AI/LLM apps to include safeguards for explicit/harmful content.
+const SAFETY_SETTINGS = [
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_LOW_AND_ABOVE },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_LOW_AND_ABOVE },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_LOW_AND_ABOVE },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_LOW_AND_ABOVE },
+];
 
 const DUA_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
@@ -193,6 +201,7 @@ Do not paraphrase Arabic. category must be one of: ${Object.values(Category).joi
             responseMimeType: "application/json",
             responseSchema: includeTranslation ? DUA_RESPONSE_SCHEMA : DUA_ARABIC_ONLY_RESPONSE_SCHEMA,
             temperature: 0.05,
+            safetySettings: SAFETY_SETTINGS,
           },
         }),
         IMAGE_REQUEST_TIMEOUT_MS
@@ -244,6 +253,7 @@ Arabic:
       responseMimeType: "application/json",
       responseSchema: DUA_RESPONSE_SCHEMA,
       temperature: 0.05,
+      safetySettings: SAFETY_SETTINGS,
     },
   });
   const parsed = normalizeResult(response.text);
@@ -276,6 +286,7 @@ OCR text:
       responseMimeType: "application/json",
       responseSchema: OCR_ARABIC_CLEANUP_SCHEMA,
       temperature: 0,
+      safetySettings: SAFETY_SETTINGS,
     },
   }, 12000, 1);
 
@@ -307,6 +318,7 @@ export const processDuaFromUrl = async (url: string, includeTranslation = true) 
         responseSchema: includeTranslation ? DUA_RESPONSE_SCHEMA : DUA_ARABIC_ONLY_RESPONSE_SCHEMA,
         tools: [{ googleSearch: {} }],
         temperature: 0.1,
+        safetySettings: SAFETY_SETTINGS,
       },
     }),
     25000

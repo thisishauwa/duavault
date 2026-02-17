@@ -17,6 +17,7 @@ interface PaywallViewProps {
   onSelectPackage: (id: 'monthly' | 'yearly' | 'lifetime') => void;
   onUpgrade: (id: 'monthly' | 'yearly' | 'lifetime') => void;
   onBack: () => void;
+  onRestorePurchases?: () => void;
 }
 
 const PaywallView: React.FC<PaywallViewProps> = ({
@@ -27,6 +28,7 @@ const PaywallView: React.FC<PaywallViewProps> = ({
   onSelectPackage,
   onUpgrade,
   onBack,
+  onRestorePurchases,
 }) => {
   const paywallCopy =
     entryReason === 'dua_limit'
@@ -43,6 +45,10 @@ const PaywallView: React.FC<PaywallViewProps> = ({
             title: 'Elevate Your Reflection',
             subtitle: 'Preserve every spiritual treasure with DuaVault Premium.',
           };
+
+  const openExternal = (url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   return (
     <div className="min-h-screen bg-[#063026] text-white p-8 flex flex-col relative overflow-hidden">
@@ -109,12 +115,42 @@ const PaywallView: React.FC<PaywallViewProps> = ({
         >
           {isPurchasing ? 'Processing...' : 'Continue'}
         </button>
-        <p className="text-[10px] text-emerald-400/40 text-center uppercase tracking-[0.3em] font-black">
-          Manage any plan from Profile -&gt; Manage Subscription
+
+        <p className="text-[10px] text-emerald-200/40 text-center leading-relaxed mt-1">
+          Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. 
+          Manage or cancel anytime in your device settings. Payment will be charged to your Apple ID account at confirmation of purchase.
         </p>
+
+        <div className="flex items-center justify-center gap-4 mt-2">
+          <button
+            onClick={() => openExternal('https://duavault.app/terms')}
+            className="text-[10px] text-emerald-400/50 underline underline-offset-2"
+          >
+            Terms of Service
+          </button>
+          <span className="text-emerald-400/20 text-[10px]">•</span>
+          <button
+            onClick={() => openExternal('https://duavault.app/privacy')}
+            className="text-[10px] text-emerald-400/50 underline underline-offset-2"
+          >
+            Privacy Policy
+          </button>
+          {onRestorePurchases && (
+            <>
+              <span className="text-emerald-400/20 text-[10px]">•</span>
+              <button
+                onClick={onRestorePurchases}
+                className="text-[10px] text-emerald-400/50 underline underline-offset-2"
+              >
+                Restore Purchases
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
 export default PaywallView;
+

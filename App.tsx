@@ -444,7 +444,7 @@ const App: React.FC = () => {
       }
       const info = await restoreRevenueCatPurchases();
       if (!info) {
-        alert('Restore Purchases is available on the iOS/Android app.');
+        alert('Restore Purchases is only available on the mobile app.');
         return;
       }
       const premiumActive = hasDuaVaultProEntitlement(info);
@@ -597,6 +597,7 @@ const App: React.FC = () => {
             void handleUpgrade(id);
           }}
           onBack={() => setCurrentView(paywallReturnView)}
+          onRestorePurchases={() => { void handleRestorePurchases(); }}
         />
       );
       case 'settings': return <SettingsView user={user} isPremium={isPremium} onBack={() => setCurrentView('library')} onOpenPaywall={() => { void handleOpenPaywallFromSettings(); }} onOpenAuth={() => setCurrentView('auth')} onSignOut={handleSignOut} onOpenCustomerCenter={handleManageSubscriptionFromSettings} onRestorePurchases={handleRestorePurchases} onDeleteAccount={handleDeleteAccount} />;
