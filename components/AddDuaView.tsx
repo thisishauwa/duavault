@@ -1,30 +1,29 @@
-
-import React, { useEffect, useState, useRef } from 'react';
-import { Category, Dua } from '../types';
-import { cleanupArabicOcrText, processDuaFromText } from '../services/geminiService';
-import { extractArabicFromImage } from '../services/ocrService';
-import { ArrowLeft, Camera, Type, Loader2, Trash2 } from 'lucide-react';
+import React, { useEffect, useState, useRef } from "react";
+import { Category, Dua } from "../types";
+import {
+  cleanupArabicOcrText,
+  processDuaFromImage,
+  processDuaFromText,
+} from "../services/geminiService";
+import { extractArabicFromImage } from "../services/ocrService";
+import { Camera, Type, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft } from "iconsax-react";
 
 interface AddDuaViewProps {
-  onSave: (dua: Omit<Dua, 'id' | 'createdAt' | 'isFavorite'>) => void;
+  onSave: (dua: Omit<Dua, "id" | "createdAt" | "isFavorite">) => void;
   onBack: () => void;
-  saveUsageLabel?: string | null;
 }
 
-const AddDuaView: React.FC<AddDuaViewProps> = ({
-  onSave,
-  onBack,
-  saveUsageLabel,
-}) => {
-  const [inputMode, setInputMode] = useState<'options' | 'manual'>('options');
+const AddDuaView: React.FC<AddDuaViewProps> = ({ onSave, onBack }) => {
+  const [inputMode, setInputMode] = useState<"options" | "manual">("options");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const [arabic, setArabic] = useState('');
-  const [translation, setTranslation] = useState('');
+  const [arabic, setArabic] = useState("");
+  const [translation, setTranslation] = useState("");
   const [category, setCategory] = useState<Category>(Category.General);
-  const [source, setSource] = useState<Dua['source']>('manual');
+  const [source, setSource] = useState<Dua["source"]>("manual");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -50,8 +49,8 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
   const fileToDataUrl = async (file: File): Promise<string> => {
     return await new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result ?? ''));
-      reader.onerror = () => reject(new Error('Could not read image.'));
+      reader.onload = () => resolve(String(reader.result ?? ""));
+      reader.onerror = () => reject(new Error("Could not read image."));
       reader.readAsDataURL(file);
     });
   };
@@ -64,6 +63,19 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
     setError(null);
     try {
       const original = await fileToDataUrl(file);
+
+      try {
+        const aiResult = await processDuaFromImage(original);
+        setArabic(aiResult.arabic);
+        setTranslation(aiResult.translation);
+        setCategory(aiResult.category as Category);
+        setSource("screenshot");
+        setInputMode("manual");
+        return;
+      } catch (imageAiError) {
+        console.error("Gemini image extraction failed:", imageAiError);
+      }
+
       const extracted = await extractArabicFromImage(original);
       let finalizedArabic = extracted.arabic;
       try {
@@ -71,29 +83,40 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
         if (corrected && corrected.length >= 6) {
           finalizedArabic = corrected;
         }
-      } catch {
-        // Keep raw OCR if cleanup request is unavailable/rate-limited.
+      } catch (cleanupError) {
+        console.error("OCR cleanup failed:", cleanupError);
       }
 
       setArabic(finalizedArabic);
-      setTranslation('');
+      setTranslation("");
       setCategory(Category.General);
-      setSource('screenshot');
-      setInputMode('manual');
+      setSource("screenshot");
+      setInputMode("options");
 
       try {
         const result = await processDuaFromText(finalizedArabic);
         setTranslation(result.translation);
         setCategory(result.category as Category);
-      } catch {
-        setError('Could not auto-translate right now. You can still add the meaning manually.');
+      } catch (textAiError) {
+        console.error("Arabic text translation failed:", textAiError);
+        setError(
+          "We extracted the Arabic text, but could not auto-translate it right now. You can still add the meaning manually.",
+        );
       }
+
+      setInputMode("manual");
     } catch (err) {
-      setError(null);
-      setInputMode('options');
-      showToast('Upload a clearer image to extract text.');
+      console.error("Image upload extraction failed:", err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not extract text from this image right now.",
+      );
+      setInputMode("options");
+      showToast("We couldn't read this image. Try a clearer screenshot.");
     } finally {
       setIsProcessing(false);
+      e.target.value = "";
     }
   };
 
@@ -107,7 +130,7 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
 
   if (isProcessing) {
     return (
-      <div className="h-full bg-white flex flex-col items-center justify-center p-12 text-center">
+      <div className="min-h-dvh bg-white flex flex-col items-center justify-center p-12 text-center">
         <div className="w-16 h-16 bg-[#f9fafb] rounded-full flex items-center justify-center mb-6">
           <Loader2 className="animate-spin text-[#006B3F]" size={28} />
         </div>
@@ -120,38 +143,40 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
   }
 
   return (
-    <div className="h-full bg-white flex flex-col">
+    <div className="min-h-dvh bg-white flex flex-col">
       {toastMessage && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-4">
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-100 px-4">
           <div className="bg-[#1a1a1a] text-white text-sm font-sans px-4 py-2 rounded-lg">
             {toastMessage}
           </div>
         </div>
       )}
 
-      <header className="px-6 pt-4 pb-4 bg-white sticky top-0 z-30 flex items-center justify-between">
-        <button onClick={onBack} className="p-2 -ml-2 text-[#9ca3af] hover:text-[#1a1a1a] transition-colors">
-          <ArrowLeft size={24} />
-        </button>
+      <header className="px-6 pt-4 pb-4 bg-white sticky top-0 z-30">
+        <div className="max-w-3xl mx-auto w-full flex items-center justify-between">
+          <button
+            onClick={onBack}
+            className="p-2 -ml-2 text-[#9ca3af] hover:text-[#1a1a1a] transition-colors"
+          >
+            <ArrowLeft size={24} variant="Linear" color="currentColor" />
+          </button>
+          <div className="w-8" />
+        </div>
       </header>
 
-      <div className="px-6 flex-1 flex flex-col pb-10 max-w-md mx-auto w-full">
+      <div className="px-6 flex-1 flex flex-col pb-10 max-w-3xl mx-auto w-full">
         <div className="flex flex-col gap-2 mb-8">
-          <h2 className="text-4xl font-header text-[#1a1a1a]">Add reflection</h2>
-          <p className="text-[#666666] font-sans text-base">Capture a new treasure for your vault.</p>
+          <h2 className="text-4xl font-header text-[#1a1a1a]">
+            Add reflection
+          </h2>
+          <p className="text-[#666666] font-sans text-base">
+            Capture a new treasure for your vault.
+          </p>
         </div>
 
-        {saveUsageLabel && (
-          <div className="mb-6 flex flex-col gap-2">
-            <p className="text-[12px] font-medium text-[#1a1a1a] bg-[#f3f4f6] rounded-lg px-3 py-2 inline-block font-sans">
-              {saveUsageLabel}
-            </p>
-          </div>
-        )}
-
-        {inputMode === 'options' ? (
+        {inputMode === "options" ? (
           <div className="flex flex-col gap-4">
-            <button 
+            <button
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-5 p-6 bg-[#f9fafb] rounded-xl hover:bg-[#f3f4f6] transition-all text-left group"
             >
@@ -159,57 +184,68 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
                 <Camera size={20} strokeWidth={2} />
               </div>
               <div>
-                <h4 className="font-sans font-medium text-lg text-[#1a1a1a]">Upload Image</h4>
-                <p className="text-[#666666] text-sm font-sans">Extract and auto-translate from gallery</p>
+                <h4 className="font-sans font-medium text-lg text-[#1a1a1a]">
+                  Upload Image
+                </h4>
+                <p className="text-[#666666] text-sm font-sans">
+                  Extract and auto-translate from gallery
+                </p>
               </div>
             </button>
-            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept="image/*"
+              onChange={handleFileUpload}
+            />
 
-            <button 
-              onClick={() => setInputMode('manual')}
+            <button
+              onClick={() => setInputMode("manual")}
               className="flex items-center gap-5 p-6 bg-[#f9fafb] rounded-xl hover:bg-[#f3f4f6] transition-all text-left group"
             >
               <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-[#1a1a1a] shadow-sm group-hover:scale-105 transition-transform">
                 <Type size={20} strokeWidth={2} />
               </div>
               <div>
-                <h4 className="font-sans font-medium text-lg text-[#1a1a1a]">Manual Entry</h4>
-                <p className="text-[#666666] text-sm font-sans">Type text directly</p>
+                <h4 className="font-sans font-medium text-lg text-[#1a1a1a]">
+                  Manual Entry
+                </h4>
+                <p className="text-[#666666] text-sm font-sans">
+                  Type text directly
+                </p>
               </div>
             </button>
           </div>
         ) : (
           <div className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-8 duration-500">
-            
             {/* Main Content Area - Scrollable */}
             <div className="flex-1 flex flex-col gap-8">
-              
               {/* Arabic Input - The Hero */}
               <div className="relative group">
                 <div className="absolute right-0 top-0 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
                   {arabic && (
-                    <button 
-                      onClick={() => setArabic('')} 
+                    <button
+                      onClick={() => setArabic("")}
                       className="text-[#d1d5db] hover:text-rose-500 transition-colors p-2"
                     >
                       <Trash2 size={20} />
                     </button>
                   )}
                 </div>
-                
-                <textarea 
+
+                <textarea
                   value={arabic}
                   onChange={(e) => setArabic(e.target.value)}
                   placeholder="Paste or type Arabic script..."
                   dir="rtl"
                   className="w-full bg-transparent border-none p-0 font-arabic text-4xl leading-[1.8] text-[#1a1a1a] placeholder:text-[#d1d5db] focus:ring-0 outline-none resize-none min-h-[120px] pt-2"
                 />
-                
               </div>
 
               {/* Translation - The Support */}
               <div className="border-t border-[#f3f4f6] pt-8">
-                <textarea 
+                <textarea
                   value={translation}
                   onChange={(e) => setTranslation(e.target.value)}
                   placeholder="Write the translation here..."
@@ -220,38 +256,58 @@ const AddDuaView: React.FC<AddDuaViewProps> = ({
               {/* Category - Minimal Select */}
               <div className="border-t border-[#f3f4f6] pt-8 pb-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-[#9ca3af] font-sans text-sm">Category</span>
+                  <span className="text-[#9ca3af] font-sans text-sm">
+                    Category
+                  </span>
                   <div className="relative">
-                    <select 
+                    <select
                       value={category}
                       onChange={(e) => setCategory(e.target.value as Category)}
                       className="appearance-none bg-transparent font-sans text-[#1a1a1a] font-medium text-base pr-8 outline-none cursor-pointer text-right"
                     >
-                      {Object.values(Category).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                      {Object.values(Category).map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
                     </select>
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-[#1a1a1a]">
-                      <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <svg
+                        width="10"
+                        height="6"
+                        viewBox="0 0 10 6"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M1 1L5 5L9 1"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
                       </svg>
                     </div>
                   </div>
                 </div>
               </div>
-
             </div>
 
             {/* Footer Action */}
             <div className="pt-4 pb-8 bg-white/95 backdrop-blur-sm sticky bottom-0">
-              <button 
+              <button
                 onClick={handleSubmit}
-                className="w-full py-4 bg-[#006B3F] text-white font-medium rounded-lg hover:bg-[#005a35] transition-all active:scale-[0.99] flex items-center justify-center gap-2 font-sans text-base"
+                className="w-full py-4 bg-[#006B3F] text-white font-medium rounded-lg hover:bg-emerald-700 transition-all active:scale-[0.99] flex items-center justify-center gap-2 font-sans text-base"
               >
                 Add Dua
               </button>
-              
-              {error && <p className="mt-4 text-rose-600 text-sm text-center font-medium">{error}</p>}
-            </div>
 
+              {error && (
+                <p className="mt-4 text-rose-600 text-sm text-center font-medium">
+                  {error}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -1,53 +1,52 @@
-
-import React from 'react';
-import { ArrowLeft, Check, Sparkles, Star } from 'lucide-react';
+import React from "react";
+import { ArrowLeft, Check, Sparkles, Star } from "lucide-react";
 
 type PackageOption = {
-  id: 'monthly' | 'yearly' | 'lifetime';
+  id: "monthly" | "yearly" | "lifetime";
   title: string;
   subtitle: string;
 };
-type PaywallEntryReason = 'default' | 'dua_limit' | 'translation_limit';
+type PaywallEntryReason = "default" | "dua_limit" | "translation_limit";
 
 interface PaywallViewProps {
   entryReason?: PaywallEntryReason;
-  selectedPackageId: 'monthly' | 'yearly' | 'lifetime';
+  selectedPackageId: "monthly" | "yearly" | "lifetime";
   packageOptions: PackageOption[];
   isPurchasing: boolean;
-  onSelectPackage: (id: 'monthly' | 'yearly' | 'lifetime') => void;
-  onUpgrade: (id: 'monthly' | 'yearly' | 'lifetime') => void;
+  onSelectPackage: (id: "monthly" | "yearly" | "lifetime") => void;
+  onUpgrade: (id: "monthly" | "yearly" | "lifetime") => void;
   onBack: () => void;
-  onRestorePurchases?: () => void;
 }
 
 const PaywallView: React.FC<PaywallViewProps> = ({
-  entryReason = 'default',
+  entryReason = "default",
   selectedPackageId,
   packageOptions,
   isPurchasing,
   onSelectPackage,
   onUpgrade,
   onBack,
-  onRestorePurchases,
 }) => {
   const paywallCopy =
-    entryReason === 'dua_limit'
+    entryReason === "dua_limit"
       ? {
-          title: 'You reached your free 10 duas',
-          subtitle: 'Upgrade to keep saving every reflection without limits.',
+          title: "You reached your free 10 duas",
+          subtitle: "Upgrade to keep saving every reflection without limits.",
         }
-      : entryReason === 'translation_limit'
+      : entryReason === "translation_limit"
         ? {
-            title: 'You reached this month\'s free translations',
-            subtitle: 'Upgrade for unlimited translations anytime you need them.',
+            title: "You reached this month's free translations",
+            subtitle:
+              "Upgrade for unlimited translations anytime you need them.",
           }
         : {
-            title: 'Elevate Your Reflection',
-            subtitle: 'Preserve every spiritual treasure with DuaVault Premium.',
+            title: "Elevate Your Reflection",
+            subtitle:
+              "Preserve every spiritual treasure with DuaVault Premium via a simple Paystack checkout.",
           };
 
   const openExternal = (url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer');
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -57,20 +56,29 @@ const PaywallView: React.FC<PaywallViewProps> = ({
         <div className="absolute top-1/4 right-0 w-96 h-96 bg-emerald-400 rounded-full blur-[120px]" />
         <div className="absolute bottom-1/4 left-0 w-96 h-96 bg-emerald-900 rounded-full blur-[120px]" />
       </div>
-      
-      <header className="relative flex justify-between items-center mb-10 z-10">
-        <button onClick={onBack} className="p-4 bg-white/5 rounded-2xl hover:bg-white/10 transition-colors">
-          <ArrowLeft size={20} />
-        </button>
-        <Star className="text-yellow-500 fill-yellow-500" size={24} />
+
+      <header className="relative mb-10 z-10">
+        <div className="max-w-3xl mx-auto w-full flex justify-between items-center">
+          <button
+            onClick={onBack}
+            className="p-4 bg-white/5 rounded-2xl hover:bg-white/10 transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <Star className="text-yellow-500 fill-yellow-500" size={24} />
+        </div>
       </header>
 
-      <div className="relative flex-1 flex flex-col items-center text-center gap-4 z-10">
-        <div className="w-20 h-20 bg-gradient-to-tr from-emerald-400 to-emerald-600 p-5 rounded-[2rem] shadow-2xl shadow-emerald-400/20 mb-6 flex items-center justify-center">
+      <div className="relative flex-1 flex flex-col items-center text-center gap-4 z-10 max-w-3xl mx-auto w-full">
+        <div className="w-20 h-20 bg-linear-to-tr from-emerald-400 to-emerald-600 p-5 rounded-4xl shadow-2xl shadow-emerald-400/20 mb-6 flex items-center justify-center">
           <Sparkles size={40} className="text-white" />
         </div>
-        <h2 className="text-4xl font-black tracking-tight leading-none">{paywallCopy.title}</h2>
-        <p className="text-emerald-200/60 text-sm mt-2 max-w-[320px]">{paywallCopy.subtitle}</p>
+        <h2 className="text-4xl font-black tracking-tight leading-none">
+          {paywallCopy.title}
+        </h2>
+        <p className="text-emerald-200/60 text-sm mt-2 max-w-[320px]">
+          {paywallCopy.subtitle}
+        </p>
 
         <div className="mt-12 w-full grid gap-5">
           {[
@@ -78,74 +86,82 @@ const PaywallView: React.FC<PaywallViewProps> = ({
             "Advanced OCR Reflection",
             "Golden AI Transcriptions",
             "Multilingual Translations",
-            "Ad-Free Spiritual Space"
+            "Ad-Free Spiritual Space",
           ].map((feature, i) => (
-            <div key={i} className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/5">
+            <div
+              key={i}
+              className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/5"
+            >
               <div className="p-1 bg-emerald-500 rounded-full">
                 <Check size={14} className="text-[#063026]" />
               </div>
-              <span className="text-emerald-50 font-bold text-sm">{feature}</span>
+              <span className="text-emerald-50 font-bold text-sm">
+                {feature}
+              </span>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="relative py-10 flex flex-col gap-4 z-10">
+      <div className="relative py-10 flex flex-col gap-4 z-10 max-w-3xl mx-auto w-full">
         <div className="w-full grid gap-3">
-          {packageOptions.map((pkg) => (
-            <button
-              key={pkg.id}
-              onClick={() => onSelectPackage(pkg.id)}
-              className={`w-full p-4 rounded-2xl border text-left transition-all ${
-                selectedPackageId === pkg.id
-                  ? 'bg-white/15 border-emerald-300'
-                  : 'bg-white/5 border-white/10 hover:bg-white/10'
-              }`}
-            >
-              <p className="font-bold text-base">{pkg.title}</p>
-              <p className="text-xs text-emerald-100/80 mt-1">{pkg.subtitle}</p>
-            </button>
-          ))}
+          {packageOptions.length > 0 ? (
+            packageOptions.map((pkg) => (
+              <button
+                key={pkg.id}
+                onClick={() => onSelectPackage(pkg.id)}
+                className={`w-full p-4 rounded-2xl border text-left transition-all ${
+                  selectedPackageId === pkg.id
+                    ? "bg-white/15 border-emerald-300"
+                    : "bg-white/5 border-white/10 hover:bg-white/10"
+                }`}
+              >
+                <p className="font-bold text-base">{pkg.title}</p>
+                <p className="text-xs text-emerald-100/80 mt-1">
+                  {pkg.subtitle}
+                </p>
+              </button>
+            ))
+          ) : (
+            <div className="w-full p-4 rounded-2xl border border-white/10 bg-white/5 text-left">
+              <p className="font-bold text-base">
+                Paystack is not configured yet
+              </p>
+              <p className="text-xs text-emerald-100/80 mt-1">
+                Add your Paystack public key and plan amounts in `.env.local`.
+              </p>
+            </div>
+          )}
         </div>
 
         <button
           onClick={() => onUpgrade(selectedPackageId)}
-          disabled={isPurchasing}
+          disabled={isPurchasing || packageOptions.length === 0}
           className="w-full bg-emerald-400 text-[#063026] py-6 rounded-3xl font-black text-lg shadow-2xl shadow-emerald-400/20 active:scale-[0.98] transition-all hover:bg-emerald-300"
         >
-          {isPurchasing ? 'Processing...' : 'Continue'}
+          {isPurchasing ? "Opening Paystack..." : "Continue to Paystack"}
         </button>
 
         <p className="text-[10px] text-emerald-200/40 text-center leading-relaxed mt-1">
-          Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. 
-          Manage or cancel anytime in your device settings. Payment will be charged to your Apple ID account at confirmation of purchase.
+          Checkout is handled through Paystack. Use your dashboard and backend
+          verification flow to confirm successful payments before granting
+          long-term access in production.
         </p>
 
         <div className="flex items-center justify-center gap-4 mt-2">
           <button
-            onClick={() => openExternal('https://duavault.app/terms')}
+            onClick={() => openExternal("https://duavault.app/terms")}
             className="text-[10px] text-emerald-400/50 underline underline-offset-2"
           >
             Terms of Service
           </button>
           <span className="text-emerald-400/20 text-[10px]">•</span>
           <button
-            onClick={() => openExternal('https://duavault.app/privacy')}
+            onClick={() => openExternal("https://duavault.app/privacy")}
             className="text-[10px] text-emerald-400/50 underline underline-offset-2"
           >
             Privacy Policy
           </button>
-          {onRestorePurchases && (
-            <>
-              <span className="text-emerald-400/20 text-[10px]">•</span>
-              <button
-                onClick={onRestorePurchases}
-                className="text-[10px] text-emerald-400/50 underline underline-offset-2"
-              >
-                Restore Purchases
-              </button>
-            </>
-          )}
         </div>
       </div>
     </div>
@@ -153,4 +169,3 @@ const PaywallView: React.FC<PaywallViewProps> = ({
 };
 
 export default PaywallView;
-

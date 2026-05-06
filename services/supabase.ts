@@ -1,22 +1,24 @@
-
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
-import { Category, Dua } from '../types';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
+import { Category, Dua } from "../types";
 
 // Environment variables - these must be set in .env.local
 const supabaseUrl = import.meta.env.VITE_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables. Please set VITE_PUBLIC_SUPABASE_URL and VITE_PUBLIC_SUPABASE_ANON_KEY in .env.local');
+  throw new Error(
+    "Missing Supabase environment variables. Please set VITE_PUBLIC_SUPABASE_URL and VITE_PUBLIC_SUPABASE_ANON_KEY in .env.local",
+  );
 }
 
-const SUPABASE_CLIENT_KEY = '__duaVaultSupabaseClient__';
+const SUPABASE_CLIENT_KEY = "__duaVaultSupabaseClient__";
 const globalScope = globalThis as typeof globalThis & {
   [SUPABASE_CLIENT_KEY]?: ReturnType<typeof createClient>;
 };
 
 export const supabase =
-  globalScope[SUPABASE_CLIENT_KEY] ?? createClient(supabaseUrl, supabaseAnonKey);
+  globalScope[SUPABASE_CLIENT_KEY] ??
+  createClient(supabaseUrl, supabaseAnonKey);
 
 if (!globalScope[SUPABASE_CLIENT_KEY]) {
   globalScope[SUPABASE_CLIENT_KEY] = supabase;
@@ -33,7 +35,7 @@ type DuaRow = {
   arabic: string;
   translation: string;
   category: Category;
-  source: Dua['source'];
+  source: Dua["source"];
   is_favorite: boolean;
   created_at: string;
   updated_at: string;
@@ -51,29 +53,30 @@ const toDua = (row: DuaRow): Dua => ({
 });
 
 export const ensureUserProfile = async (user: BasicUser) => {
-  const { error } = await supabase
-    .from('profiles')
-    .upsert(
-      {
-        id: user.id,
-        email: user.email ?? null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'id' }
-    );
+  const { error } = await supabase.from("profiles").upsert(
+    {
+      id: user.id,
+      email: user.email ?? null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "id" },
+  );
 
   if (!error) return;
 
-  if (error.code === '42P01') {
+  if (error.code === "42P01") {
     throw new Error(
-      'Missing "profiles" table in Supabase. Run the SQL in supabase/profiles.sql, then try again.'
+      'Missing "profiles" table in Supabase. Run the SQL in supabase/profiles.sql, then try again.',
     );
   }
 
   throw error;
 };
 
-export const signInWithEmailPassword = async (email: string, password: string) => {
+export const signInWithEmailPassword = async (
+  email: string,
+  password: string,
+) => {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -85,7 +88,10 @@ export const signInWithEmailPassword = async (email: string, password: string) =
   return data;
 };
 
-export const signUpWithEmailPassword = async (email: string, password: string) => {
+export const signUpWithEmailPassword = async (
+  email: string,
+  password: string,
+) => {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -105,22 +111,33 @@ export const signOut = async () => {
   if (error) throw error;
 };
 
+export const signInWithGoogle = async () => {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: "https://duas.thisishauwa.com",
+    },
+  });
+  if (error) throw error;
+  return data;
+};
+
 export const fetchUserDuas = async (userId: string) => {
   const { data, error } = await supabase
-    .from('duas')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+    .from("duas")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
 
   if (error) throw error;
   return ((data ?? []) as DuaRow[]).map(toDua);
 };
 
-type CreateDuaPayload = Omit<Dua, 'id' | 'createdAt' | 'isFavorite'>;
+type CreateDuaPayload = Omit<Dua, "id" | "createdAt" | "isFavorite">;
 
 export const createUserDua = async (userId: string, dua: CreateDuaPayload) => {
   const { data, error } = await supabase
-    .from('duas')
+    .from("duas")
     .insert({
       user_id: userId,
       arabic: dua.arabic,
@@ -129,7 +146,7 @@ export const createUserDua = async (userId: string, dua: CreateDuaPayload) => {
       source: dua.source,
       is_favorite: false,
     })
-    .select('*')
+    .select("*")
     .single();
 
   if (error) throw error;
@@ -138,7 +155,7 @@ export const createUserDua = async (userId: string, dua: CreateDuaPayload) => {
 
 export const updateUserDua = async (userId: string, dua: Dua) => {
   const { data, error } = await supabase
-    .from('duas')
+    .from("duas")
     .update({
       arabic: dua.arabic,
       translation: dua.translation,
@@ -146,9 +163,9 @@ export const updateUserDua = async (userId: string, dua: Dua) => {
       source: dua.source,
       is_favorite: dua.isFavorite,
     })
-    .eq('id', dua.id)
-    .eq('user_id', userId)
-    .select('*')
+    .eq("id", dua.id)
+    .eq("user_id", userId)
+    .select("*")
     .single();
 
   if (error) throw error;
@@ -156,11 +173,18 @@ export const updateUserDua = async (userId: string, dua: Dua) => {
 };
 
 export const deleteUserDua = async (userId: string, duaId: string) => {
-  const { error } = await supabase.from('duas').delete().eq('id', duaId).eq('user_id', userId);
+  const { error } = await supabase
+    .from("duas")
+    .delete()
+    .eq("id", duaId)
+    .eq("user_id", userId);
   if (error) throw error;
 };
 
-export const upsertUserDuas = async (userId: string, duas: CreateDuaPayload[]) => {
+export const upsertUserDuas = async (
+  userId: string,
+  duas: CreateDuaPayload[],
+) => {
   if (!duas.length) return [];
 
   const payload = duas.map((dua) => ({
@@ -172,7 +196,10 @@ export const upsertUserDuas = async (userId: string, duas: CreateDuaPayload[]) =
     is_favorite: false,
   }));
 
-  const { data, error } = await supabase.from('duas').insert(payload).select('*');
+  const { data, error } = await supabase
+    .from("duas")
+    .insert(payload)
+    .select("*");
 
   if (error) throw error;
   return ((data ?? []) as DuaRow[]).map(toDua);
@@ -180,22 +207,25 @@ export const upsertUserDuas = async (userId: string, duas: CreateDuaPayload[]) =
 
 export const fetchUserPreferences = async (userId: string) => {
   const { data, error } = await supabase
-    .from('user_preferences')
-    .select('has_completed_onboarding')
-    .eq('user_id', userId)
+    .from("user_preferences")
+    .select("has_completed_onboarding")
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (error) throw error;
   return data?.has_completed_onboarding ?? false;
 };
 
-export const setUserOnboardingCompleted = async (userId: string, completed: boolean) => {
-  const { error } = await supabase.from('user_preferences').upsert(
+export const setUserOnboardingCompleted = async (
+  userId: string,
+  completed: boolean,
+) => {
+  const { error } = await supabase.from("user_preferences").upsert(
     {
       user_id: userId,
       has_completed_onboarding: completed,
     },
-    { onConflict: 'user_id' }
+    { onConflict: "user_id" },
   );
 
   if (error) throw error;
@@ -203,17 +233,17 @@ export const setUserOnboardingCompleted = async (userId: string, completed: bool
 
 export const fetchIsPremium = async (userId: string) => {
   const { data, error } = await supabase
-    .from('subscriptions')
-    .select('status')
-    .eq('user_id', userId)
+    .from("subscriptions")
+    .select("status")
+    .eq("user_id", userId)
     .maybeSingle();
 
   // If subscriptions table is not created yet, fail safely as free tier.
   if (error) {
-    if (error.code === '42P01') return false;
+    if (error.code === "42P01") return false;
     throw error;
   }
-  return data?.status === 'active';
+  return data?.status === "active";
 };
 
 const getCurrentPeriodStart = () => {
@@ -230,17 +260,20 @@ export type TranslationQuota = {
   limit: number;
 };
 
-export const fetchTranslationQuota = async (userId: string, limit: number): Promise<TranslationQuota> => {
+export const fetchTranslationQuota = async (
+  userId: string,
+  limit: number,
+): Promise<TranslationQuota> => {
   const periodStart = getCurrentPeriodStart();
   const { data, error } = await supabase
-    .from('translation_usage')
-    .select('used_count')
-    .eq('user_id', userId)
-    .eq('period_start', periodStart)
+    .from("translation_usage")
+    .select("used_count")
+    .eq("user_id", userId)
+    .eq("period_start", periodStart)
     .maybeSingle();
 
   if (error) {
-    if (error.code === '42P01') {
+    if (error.code === "42P01") {
       return {
         allowed: true,
         used: 0,
@@ -263,20 +296,24 @@ export const fetchTranslationQuota = async (userId: string, limit: number): Prom
   };
 };
 
-export const consumeTranslationQuota = async (limit: number): Promise<TranslationQuota> => {
+export const consumeTranslationQuota = async (
+  limit: number,
+): Promise<TranslationQuota> => {
   const periodStart = getCurrentPeriodStart();
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData.user?.id;
-  if (!userId) throw new Error('Not authenticated');
+  if (!userId) throw new Error("Not authenticated");
 
   // Pure client-side path (no RPC) to avoid 400 spam from missing/mismatched RPC signatures.
   // 1) Try insert for first usage this month.
-  const { error: insertError } = await supabase.from('translation_usage').insert({
-    user_id: userId,
-    period_start: periodStart,
-    used_count: 1,
-    updated_at: new Date().toISOString(),
-  });
+  const { error: insertError } = await supabase
+    .from("translation_usage")
+    .insert({
+      user_id: userId,
+      period_start: periodStart,
+      used_count: 1,
+      updated_at: new Date().toISOString(),
+    });
 
   if (!insertError) {
     return {
@@ -288,7 +325,7 @@ export const consumeTranslationQuota = async (limit: number): Promise<Translatio
     };
   }
 
-  if (insertError.code === '42P01') {
+  if (insertError.code === "42P01") {
     throw insertError;
   }
 
@@ -297,15 +334,17 @@ export const consumeTranslationQuota = async (limit: number): Promise<Translatio
   if (!current.allowed) return current;
 
   const nextUsed = current.used + 1;
-  const { error: upsertError } = await supabase.from('translation_usage').upsert(
-    {
-      user_id: userId,
-      period_start: periodStart,
-      used_count: nextUsed,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'user_id,period_start' }
-  );
+  const { error: upsertError } = await supabase
+    .from("translation_usage")
+    .upsert(
+      {
+        user_id: userId,
+        period_start: periodStart,
+        used_count: nextUsed,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,period_start" },
+    );
   if (upsertError) throw upsertError;
 
   return {
@@ -319,11 +358,11 @@ export const consumeTranslationQuota = async (limit: number): Promise<Translatio
 
 export const upsertUserSubscription = async (
   userId: string,
-  status: 'active' | 'inactive' | 'expired' | 'cancelled',
+  status: "active" | "inactive" | "expired" | "cancelled",
   planCode: string,
-  provider = 'revenuecat'
+  provider = "revenuecat",
 ) => {
-  const { error } = await supabase.from('subscriptions').upsert(
+  const { error } = await supabase.from("subscriptions").upsert(
     {
       user_id: userId,
       status,
@@ -331,11 +370,11 @@ export const upsertUserSubscription = async (
       provider,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: 'user_id' }
+    { onConflict: "user_id" },
   );
 
   if (error) {
-    if (error.code === '42P01') return;
+    if (error.code === "42P01") return;
     throw error;
   }
 };

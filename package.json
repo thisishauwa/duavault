@@ -19,6 +19,7 @@
     "@google/genai": "^1.38.0",
     "@revenuecat/purchases-capacitor": "^12.1.1",
     "@revenuecat/purchases-capacitor-ui": "^12.1.1",
+    "iconsax-react": "^0.0.8",
     "lucide-react": "^0.563.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
@@ -30,6 +31,7 @@
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.23",
     "postcss": "^8.5.6",
+    "puppeteer": "^24.43.0",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
